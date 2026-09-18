@@ -1,0 +1,18 @@
+Data Analyst (APS6)
+at a Commonwealth Government department
+
+The Data and Reporting Branch is looking for a Data Analyst to build and maintain
+reporting pipelines, answer analytical questions from policy teams, and improve the
+quality of the department's administrative datasets.
+
+Salary $92,000 - $104,000 plus 15.4% superannuation. Ongoing.
+Closes: 14 October 2026
+
+Duties:
+- Develop and maintain SQL and Python data pipelines
+- Produce regular and ad hoc reports for executive audiences
+- Work with policy teams to turn questions into measurable analyses
+- Contribute to data quality and documentation standards
+
+Eligibility: Australian citizenship is required for this role. Applicants must be
+able to obtain and maintain a Baseline security clearance.

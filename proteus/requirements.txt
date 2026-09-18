@@ -1,0 +1,5 @@
+# Core MVP (T1-T4) runs on the Python standard library — nothing required here.
+# Optional live LLM path (calibration re-assessment + JD parsing):
+anthropic>=0.40 ; extra == "llm"
+# Optional test runner:
+pytest>=7 ; extra == "dev"

@@ -1,0 +1,20 @@
+Research Assistant — Data and Statistics (part-time, remote-friendly)
+at a small research institute
+
+We are looking for a part-time Research Assistant to help with data cleaning,
+analysis and figure preparation across several ongoing studies. The role suits
+someone comfortable working independently with periodic check-ins.
+
+0.6 FTE, 12 month contract, remote or hybrid.
+Closes: 5 December 2026
+
+You will need:
+- Experience cleaning and analysing quantitative data
+- Working knowledge of Python, R or MATLAB
+- Care with detail and version control
+- Clear written English
+
+Desirable: experience preparing figures for publication, and familiarity with
+reproducible analysis workflows.
+
+Applicants must have the right to work in Australia.

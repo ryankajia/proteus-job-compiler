@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# PRIVATE DATA — never publish.
+#
+# my-materials/ holds real CVs, referees' names, submitted applications and
+# personal identifiers. proteus/data/ and proteus/out/ hold the identity graph,
+# the database and generated drafts built from them. None of it belongs on
+# GitHub. Only the engine and the sample data are public.
+# ---------------------------------------------------------------------------
+my-materials/
+proteus/databases/
+proteus/out/
+proteus/data/seed_identity.json
+proteus/data/seed_identity.backup.json
+proteus/data/master_cv.txt
+proteus/data/materials_manifest.json
+proteus/data/real_jobs/
+proteus/data/relative_to_opportunity_statement.md
+# Personal working logs. DECISIONS.md records the real job hunt — job IDs,
+# rejections, salary figures, visa details — and PROPOSALS.md its open
+# questions. Both now live in my-materials/reference/ and are ignored there.
+proteus/data/calibration_levels.json
+
+
+# Keep the templates and samples that make the repo usable by someone else.
+!proteus/data/seed_identity.template.json
+!proteus/data/sample_jobs/
+
+# The secret list itself. Publishing a list of exactly what you are hiding
+# would defeat the point.
+.githooks/secrets.txt
+
+# Working rules that describe one real job hunt.
+CLAUDE.md
+
+# Local machine config — contains the local username in absolute paths.
+.claude/settings.local.json
+
+# Housekeeping
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+*.bak
+*.bak[0-9]
+*.bak-*
+.trash/

@@ -1,0 +1,77 @@
+# Proteus — the engine
+
+> Start at the repository README one level up. This file is the module-level detail.
+
+> You are the source code; résumés are compiled build products.
+> **New here? Read `GUIDE.md` — 3 steps to your first application package.**
+
+## What's here
+
+| Layer | Module | Status |
+|---|---|---|
+| L0 Identity Core | `proteus/db.py`, `proteus/identity.py`, `data/seed_identity.json` | ✅ SQLite+JSON, seeded from CV (+ education & experience) |
+| Calibration (T1.5) | `proteus/calibration.py` | ✅ evidence-driven levels + rationale, stretch_score, Gap Report |
+| L1 JobSpec (T2) | `proteus/jobspec.py` | ✅ deterministic JD parser (+ optional LLM) |
+| L4 Compiler (T3+T7) | `proteus/compiler.py` | ✅ 4 persona build targets, education/experience sections, evidence ledger |
+| L2 Matching (T4) | `proteus/fit.py` | ✅ fit_score ranker (spray-and-rank mode: sort, don't filter) |
+| Sensing (T5, compliance-safe) | `scripts/ingest.py` | ✅ clipboard → package in one command (no scraping, by design) |
+| Reviewer simulator (T6) | `proteus/reviewer.py` | ✅ deadline / work-rights / referees / selection-criteria / visa blockers |
+| Cover letters (T7) | `proteus/coverletter.py` | ✅ evidence-grounded, persona-aware drafts |
+| CRM board (T8) | `proteus/webapp.py`, `proteus/jobdoc.py`, `proteus/joburl.py` | ✅ paste, upload (PDF/Word) **or fetch one pasted link** + status board (`python3 -m proteus.webapp`) |
+| Reverse discovery (T9) | `scripts/discover.py` | ✅ capability → employer archetypes, aimed at your city |
+| Orchestrator (T10) | `scripts/apply.py` | ✅ one command → full application package per job |
+| Learning loop (T11, lite) | `scripts/outcome.py` + `events` table | ✅ record outcomes, response-rate report |
+| Claude API | `proteus/llm.py` | ✅ optional (claude-fable-5 + opus-4-8 fallback) |
+
+Deliberately *not* built: job-board crawling, link discovery, scheduled re-fetch,
+auto-submit (charter: human-in-the-loop, compliance tiers). `joburl.py` reads
+**one** URL, **when you click**, and hands the text back to you for review — it is
+assisted paste, not a crawler.
+
+## Run it
+
+```bash
+cd proteus
+python3 scripts/seed.py            # load Identity Graph + calibrate (no API key needed)
+python3 scripts/apply.py           # -> out/apply/<job>/ package for every saved JD
+python3 scripts/milestone.py       # -> out/level_report.md, ranking.md (sample-job demo)
+```
+
+Add `--llm` to either command to re-derive calibration levels and parse JDs live
+via the Claude API (needs `pip install anthropic` and `ANTHROPIC_API_KEY`).
+
+```bash
+python3 -m pytest                  # smoke tests
+```
+
+## Design invariants honoured (Fable 5 charter §2)
+
+1. **Evidence Ledger** — every résumé claim traces to a seeded evidence item.
+2. **Human-in-the-loop** — Proteus generates; it never sends. No outbound path exists.
+3. **Visa filter kept** — infeasible roles are scored down and greyed, never dropped.
+4. **Backward-compatible schema** — `db.SCHEMA_VERSION`; changes add migrations.
+5. **Compliance tiers** — no scraping in the MVP; JD parsing is paste-only (LinkedIn C-tier).
+
+## Adding a real job
+
+Three equivalent ways, all human-initiated:
+
+- **Web UI** — **+ Add a job**: paste a link and press **Fetch the page**
+  (`proteus/joburl.py` reads that one page — schema.org `JobPosting` first,
+  then main-content HTML, then PDF — and drops the text, title and closing date
+  into the review box), paste the ad text, upload the ad/PD as PDF or Word
+  (`proteus/jobdoc.py` extracts the text), or any combination. Fetching and
+  building are separate steps: you always see the text before a package is
+  built. Unreadable links fail loudly (bot check / login wall / JS-only page)
+  rather than saving a blank entry.
+- **Clipboard** — `python3 scripts/ingest.py <name>`.
+- **By hand** — drop a `.txt` into `data/real_jobs/` and run `scripts/apply.py`.
+
+Nothing is auto-submitted, ever.
+
+## Discretion
+
+The UI is named **Job Board** and its visible chrome (window title, headings,
+buttons, status words) avoids job-hunting vocabulary; the how-to text lives in
+a collapsed panel. Only the surface strings changed — routes, DB keys, file
+names and package contents are untouched.

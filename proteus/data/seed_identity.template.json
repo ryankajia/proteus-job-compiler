@@ -1,0 +1,97 @@
+{
+  "_README": [
+    "Copy this file to seed_identity.json and replace every value with your own.",
+    "Then run: python3 scripts/seed.py",
+    "",
+    "The core idea: you are the source, resumes are compiled output.",
+    "  evidence         = things that actually exist and can be checked (a paper, a repo, a project, a URL).",
+    "  capability_units = what you can do, each one POINTING AT the evidence that proves it.",
+    "Nothing is ever claimed on a resume unless it traces back to an evidence entry.",
+    "That is what stops the system inventing things about you.",
+    "",
+    "Start small. Six evidence entries and four capability units is enough to produce",
+    "a first application package. Add more as you go."
+  ],
+
+  "profile": {
+    "name": "Your Name",
+    "title": "The one-line positioning you want at the top of a resume",
+    "email": "you@example.com",
+    "phone": "+61 400 000 000",
+    "location": "Your City, STATE",
+    "work_rights": "State your status plainly — 'Australian citizen', 'Permanent resident', or your visa subclass and its expiry. The reviewer checks this against each ad and flags roles that conflict with it. If you are a citizen or PR, also empty VISA_BLOCKERS in proteus/fit.py.",
+    "summary": "Three or four sentences you would be happy to read aloud in an interview. Plain words, no adjectives you cannot defend.",
+    "education": [
+      {
+        "degree": "Ph.D., Your Field",
+        "institution": "University",
+        "years": "2013-2018",
+        "detail": "Thesis title, or leave empty."
+      }
+    ],
+    "experience": [
+      {
+        "role": "Your Job Title",
+        "organisation": "Where you worked",
+        "years": "2019-present",
+        "bullets": [
+          "What you actually did, with real numbers. Scale beats adjectives.",
+          "One line per distinct thing. Keep the strongest first."
+        ]
+      }
+    ],
+    "languages": ["English (fluent)", "Another language (native)"]
+  },
+
+  "personas": {
+    "researcher": "Academic positioning: publications, methods, grants.",
+    "builder": "Software and data positioning: pipelines, tooling, shipped systems.",
+    "manager": "Coordination positioning: budgets, reporting, multi-party delivery.",
+    "polymath": "Mixed positioning — used when a job spans more than one of the above."
+  },
+
+  "evidence": [
+    {
+      "id": "ev_example_paper",
+      "type": "paper",
+      "ref": "Full citation, with a DOI or URL if there is one.",
+      "verifiable": true,
+      "note": "Anything that makes it stronger — a prize, an invitation, a citation count."
+    },
+    {
+      "id": "ev_example_project",
+      "type": "project",
+      "ref": "Project name, your role, scale in real numbers (budget, people, sites, duration).",
+      "verifiable": true,
+      "note": "Say plainly whether you led it or contributed to it. Do not inflate this."
+    },
+    {
+      "id": "ev_example_repo",
+      "type": "repo",
+      "ref": "What you built, the stack, and where the code lives.",
+      "verifiable": true,
+      "note": ""
+    }
+  ],
+
+  "capability_units": [
+    {
+      "id": "cap_example_analysis",
+      "domain": "research",
+      "statement": "One sentence on what you can do. Be specific about the limit too — 'independently does X; has not yet done Y' is more credible than a bare claim, and keeps you honest in interviews.",
+      "evidence": ["ev_example_paper", "ev_example_repo"],
+      "keywords": [
+        "the words a job ad would actually use for this",
+        "data analysis",
+        "statistics"
+      ]
+    },
+    {
+      "id": "cap_example_coordination",
+      "domain": "management",
+      "statement": "A second capability, pointing at different evidence.",
+      "evidence": ["ev_example_project"],
+      "keywords": ["project management", "coordination", "reporting"]
+    }
+  ]
+}

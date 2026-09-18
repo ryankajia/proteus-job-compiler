@@ -1,0 +1,79 @@
+{
+  "_README": [
+    "Hard thresholds — the reasons an application is rejected before anyone",
+    "reads it. They are knowable the moment a job is added, so they are checked",
+    "then, not after the documents are written.",
+    "",
+    "A hit never removes a job. It marks it and sorts it to the top of the",
+    "'To assess' group with a reason, exactly as fit.py scores a visa-blocked",
+    "role down instead of hiding it. The judgement stays with you: an employer",
+    "who says 'registration required' sometimes means 'or eligible for'.",
+    "",
+    "Add your own patterns. They are case-insensitive regular expressions,",
+    "matched against the whole ad text."
+  ],
+
+  "citizenship": {
+    "label": "Citizenship or permanent residency",
+    "why": "This ad appears to require citizenship or PR, which a visa holder cannot meet.",
+    "patterns": [
+      "must be an australian citizen",
+      "australian citizen(ship)? (is )?(required|essential|mandatory)",
+      "open (only )?to australian citizens",
+      "citizens or permanent residents only",
+      "permanent resident(s|cy)? (is |are )?(required|essential)",
+      "you must hold australian (citizenship|permanent residency)"
+    ]
+  },
+
+  "clearance": {
+    "label": "Security clearance",
+    "why": "An AGSVA clearance requires Australian citizenship, so this is closed to visa holders.",
+    "patterns": [
+      "security clearance",
+      "baseline clearance",
+      "negative vetting",
+      "\\bnv1\\b", "\\bnv2\\b", "\\bagsva\\b",
+      "ability to obtain( and maintain)? a .{0,20}clearance"
+    ]
+  },
+
+  "registration": {
+    "label": "Professional registration",
+    "why": "This role needs a registration or licence that takes time to obtain and cannot be assumed.",
+    "patterns": [
+      "\\bahpra\\b",
+      "\\baasw\\b",
+      "\\bpacfa\\b",
+      "registered nurse",
+      "registered psychologist",
+      "medical registration",
+      "full registration with",
+      "current (professional )?registration",
+      "eligibility for registration as a",
+      "\\brasw\\b",
+      "teacher registration",
+      "\\bcpa\\b|chartered accountant",
+      "admitted (as a )?(legal practitioner|solicitor)"
+    ]
+  },
+
+  "experience_years": {
+    "label": "Minimum years of experience",
+    "why": "A stated minimum number of years in a specific role is a filter applied before merit.",
+    "patterns": [
+      "(\\d+)\\+?\\s*(?:or more\\s*)?years?(?:'|’s)?\\s+(?:of\\s+)?(?:demonstrated\\s+|relevant\\s+|recent\\s+)?experience\\s+(?:as|in|working as)\\s+(?:an?\\s+)?([A-Za-z][A-Za-z /&-]{2,45})",
+      "minimum (?:of )?(\\d+)\\s*years?(?:'|’s)?\\s+experience\\s+(?:as|in)\\s+(?:an?\\s+)?([A-Za-z][A-Za-z /&-]{2,45})"
+    ]
+  },
+
+  "location": {
+    "label": "Location",
+    "why": "This role names a location that may sit outside where you are permitted or able to work.",
+    "remote_patterns": [
+      "\\bremote\\b", "work from home", "\\bwfh\\b", "location flexible",
+      "anywhere in australia", "hybrid"
+    ],
+    "restricted_patterns": []
+  }
+}

@@ -1,0 +1,20 @@
+Senior AI Engineer (Remote, Australia)
+at a health-tech startup
+
+We are building LLM-powered clinical tools and need a senior engineer to design
+and ship multi-agent systems. You will work across the stack.
+
+Required:
+- Strong Python
+- Experience building LLM / multi-agent systems and agent orchestration
+- Full-stack web development (FastAPI, React)
+- REST API design
+- Cloud deployment (AWS, Docker)
+- Data pipeline and data analysis skills
+
+Nice to have:
+- Kubernetes
+- Prompt engineering
+- Scientific or clinical domain background
+
+Full working rights required. Remote within Australia. Salary AUD 140,000 - 170,000.

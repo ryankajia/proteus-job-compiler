@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Refuse a commit that would publish personal data.
+
+Two layers, deliberately:
+
+  1. **Structural rules, built into this file.** Paths and file types that are
+     never publishable — the private materials folder, the identity and
+     calibration files, any CV document. These cannot be lost, because they do
+     not depend on a file that is itself git-ignored.
+
+  2. **Literal strings, read from .githooks/secrets.txt.** Names, emails,
+     grant codes, phone numbers. That file is git-ignored on purpose: a list
+     of the exact things you are hiding would otherwise be published along
+     with everything else.
+
+Only *staged additions* are scanned, so an existing line that already mentions
+a term will not block every later commit.
+
+Enable with:   git config core.hooksPath .githooks
+Bypass once:   git commit --no-verify     (think first)
+"""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+HOOK_DIR = Path(__file__).resolve().parent
+SECRETS = HOOK_DIR / "secrets.txt"
+EXAMPLE = HOOK_DIR / "secrets.example.txt"
+
+# --- layer 1: paths that must never be committed --------------------------
+BLOCKED_PATHS = [
+    (re.compile(r"^my-materials/"), "private materials (CVs, referees, applications)"),
+    (re.compile(r"(^|/)seed_identity\.json$"), "the real identity graph"),
+    (re.compile(r"(^|/)calibration_levels\.json$"), "real calibration levels"),
+    (re.compile(r"(^|/)proteus\.db"), "the database"),
+    (re.compile(r"^proteus/data/real_jobs/"), "saved job ads"),
+    (re.compile(r"^proteus/out/"), "generated application packages"),
+    (re.compile(r"(^|/)DECISIONS\.md$"), "the private decision log"),
+    (re.compile(r"\.(docx?|pdf|rtf)$"), "a document that may contain personal data"),
+    (re.compile(r"(^|/)settings\.local\.json$"), "local machine config"),
+    (re.compile(r"-brief\.md$|-mock\.html$"), "a private working document"),
+    # The list of secrets is itself a secret: committing it publishes an index
+    # of exactly what is being hidden. (Found by the hook's own test suite,
+    # where `git add -A` staged it and its content matched its own terms.)
+    (re.compile(r"^\.githooks/secrets\.txt$"), "the secret list itself"),
+]
+
+# Paths the rules above would catch but which are genuinely safe to publish.
+ALLOWED = [
+    re.compile(r"(^|/)tests/fixtures/(seed_identity|calibration_levels)\.json$"),
+    re.compile(r"\.template\.json$"),
+]
+
+
+def staged_files() -> list[str]:
+    out = subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+                         capture_output=True, text=True).stdout
+    return [p for p in out.splitlines() if p.strip()]
+
+
+def staged_additions() -> list[tuple[str, int, str]]:
+    """(path, line number, text) for every line this commit adds."""
+    out = subprocess.run(["git", "diff", "--cached", "-U0", "--diff-filter=ACMR"],
+                         capture_output=True, text=True, errors="replace").stdout
+    results, path, lineno = [], "", 0
+    for line in out.splitlines():
+        if line.startswith("+++ b/"):
+            path = line[6:]
+        elif line.startswith("@@"):
+            m = re.search(r"\+(\d+)", line)
+            lineno = int(m.group(1)) if m else 0
+        elif line.startswith("+") and not line.startswith("+++"):
+            results.append((path, lineno, line[1:]))
+            lineno += 1
+    return results
+
+
+def load_terms() -> tuple[list[str], str]:
+    src = SECRETS if SECRETS.is_file() else (EXAMPLE if EXAMPLE.is_file() else None)
+    if src is None:
+        return [], ""
+    terms = []
+    for raw in src.read_text(encoding="utf-8", errors="replace").splitlines():
+        t = raw.split("#", 1)[0].strip() if not raw.lstrip().startswith("#") else ""
+        if t:
+            terms.append(t)
+    return terms, src.name
+
+
+def main() -> int:
+    problems: list[str] = []
+
+    for path in staged_files():
+        if any(a.search(path) for a in ALLOWED):
+            continue
+        for pattern, why in BLOCKED_PATHS:
+            if pattern.search(path):
+                problems.append(f"  {path}\n      blocked: {why}")
+                break
+
+    terms, source = load_terms()
+    if terms:
+        lowered = [(t, t.lower()) for t in terms]
+        for path, lineno, text in staged_additions():
+            if any(a.search(path) for a in ALLOWED) or path.endswith("secrets.txt"):
+                continue
+            low = text.lower()
+            for term, lterm in lowered:
+                if lterm in low:
+                    snippet = text.strip()[:88]
+                    problems.append(f"  {path}:{lineno}\n"
+                                    f"      matched \"{term}\" from {source}\n"
+                                    f"      {snippet}")
+                    break
+
+    if not problems:
+        return 0
+
+    print("\n\033[31mCommit refused — this would publish personal data.\033[0m\n")
+    for p in problems:
+        print(p)
+    print("\n  Fix the lines above, or unstage the files:  git restore --staged <path>")
+    if not SECRETS.is_file():
+        print(f"  (no .githooks/secrets.txt yet — using {source})")
+    print("  To commit anyway:  git commit --no-verify   — only if you are certain.\n")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

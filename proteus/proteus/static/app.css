@@ -1,0 +1,199 @@
+/* Proteus dashboard styles.
+   Kept out of webapp.py on purpose: this used to live inside an f-string,
+   where every literal { and } had to be doubled. One missed brace and the
+   module would not parse. */
+
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Arial,sans-serif;
+     max-width:920px;margin:2rem auto;padding:0 1.2rem;color:#1c1c1e;background:#fafafa;line-height:1.5}
+h1{font-size:1.4rem;margin-bottom:.2rem}
+.sub{color:#666;margin-bottom:1.5rem}
+a{color:#0a66c2;text-decoration:none}
+a:hover{text-decoration:underline}
+.btn{display:inline-block;background:#0a66c2;color:#fff;padding:.55rem 1.1rem;border-radius:8px;
+     font-weight:600;border:none;cursor:pointer;font-size:.95rem}
+.btn:hover{background:#084c93;text-decoration:none}
+.btn.secondary{background:#e4e4e7;color:#1c1c1e}
+.btn.secondary:hover{background:#d4d4d8}
+table{width:100%;border-collapse:collapse;margin-top:1rem;background:#fff;border-radius:10px;overflow:hidden;
+      box-shadow:0 1px 3px rgba(0,0,0,.08)}
+th,td{padding:.7rem .8rem;text-align:left;border-bottom:1px solid #eee;font-size:.92rem}
+th{background:#f2f2f5;font-weight:600;color:#444}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:.15rem .6rem;border-radius:999px;font-size:.8rem;font-weight:600}
+.badge.high{background:#dcf5e2;color:#1a7f37}
+.badge.mid{background:#fff2cc;color:#92700c}
+.badge.low{background:#f3f3f4;color:#666}
+.badge.grey{background:#eee;color:#999;text-decoration:line-through}
+select{padding:.3rem;border-radius:6px;border:1px solid #ccc;font-size:.85rem}
+textarea{width:100%;min-height:260px;font-family:ui-monospace,monospace;font-size:.85rem;
+         padding:.7rem;border-radius:8px;border:1px solid #ccc;box-sizing:border-box}
+.card{background:#fff;border-radius:10px;padding:1.2rem 1.4rem;margin-top:1rem;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+pre.resume{white-space:pre-wrap;font-family:-apple-system,sans-serif;font-size:.92rem;line-height:1.6}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem}
+.gap-item{margin:.2rem 0}
+.empty{color:#888;padding:2rem;text-align:center}
+form.inline{display:inline}
+.doc{line-height:1.65;font-size:.95rem}
+.doc h2{font-size:1.25rem;margin:.6rem 0 .3rem}
+.doc h3{font-size:1.05rem;margin:.9rem 0 .3rem}
+.doc p{margin:.35rem 0}
+.doc ul{margin:.3rem 0 .3rem 1.2rem}
+.doc code{background:#f2f2f5;padding:.05rem .35rem;border-radius:4px;font-size:.85em}
+blockquote.note{background:#fffbe6;border-left:3px solid #e6c34a;margin:.6rem 0;
+                padding:.4rem .8rem;color:#775c00;border-radius:0 6px 6px 0}
+blockquote.note p{margin:.2rem 0}
+ol li{margin:.45rem 0}
+details.card>summary{cursor:pointer;font-size:1rem;color:#444;list-style:none}
+details.card>summary::-webkit-details-marker{display:none}
+details.card>summary::before{content:"▸ ";color:#888}
+details.card[open]>summary::before{content:"▾ "}
+input[type=text],input[type=url]{padding:.45rem .6rem;border-radius:8px;border:1px solid #ccc;
+     font-size:.9rem;box-sizing:border-box}
+input[type=file]{font-size:.9rem}
+.drop{border:1.5px dashed #c3c8d0;border-radius:10px;padding:1rem;background:#fbfcfe;transition:border-color .12s,background .12s}
+.drop.over{border-color:#3b7ddd;border-style:solid;background:#eef4ff}
+.drop .picked{margin:.6rem 0 0;padding:0;list-style:none;font-size:.86rem;color:#2b6b3f}
+.drop .picked li:before{content:"📄 ";}
+.fields{display:flex;flex-wrap:wrap;gap:.6rem;margin:.8rem 0}
+.fields label{font-size:.85rem;color:#555;display:flex;flex-direction:column;gap:.25rem;flex:1 1 12rem}
+.err{color:#c0392b}
+.ok{background:#e8f6ec;border-left:3px solid #2ea44f;color:#1a7f37;
+    padding:.5rem .8rem;border-radius:0 6px 6px 0;font-size:.9rem}
+
+/* Print view: the toolbar and card chrome are screen-only. Moved here
+   from an inline <style> in render_package_file(). */
+@media print{
+  .noprint{display:none}
+  body{background:#fff;max-width:100%}
+  .card{box-shadow:none;padding:0}
+}
+
+
+/* ============================================================ board ======
+   One row per job, grouped by pipeline stage. Grid rather than <table> so a
+   narrow window stacks instead of growing a horizontal scrollbar — the old
+   table overflowed at 1280px and cut off the "Open" column.
+   Layout follows the design mock in my-materials/. */
+
+:root{
+  --b-card:#fff; --b-line:#E3E3DE; --b-line-soft:#EDEDE9;
+  --b-ink:#1C1C1A; --b-ink-2:#5A5A55; --b-ink-3:#8A8A83;
+  --b-accent:#1F4E79;
+  --b-live:#1B6B3A;  --b-live-bg:#E6F2EA;
+  --b-warn:#9A5B10;  --b-warn-bg:#FBEEDC;
+  --b-crit:#9B2C22;  --b-crit-bg:#FAE6E3;
+  --b-dead:#9A9A93;  --b-dead-bg:#EFEFEB;
+}
+
+/* status strip */
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  gap:1px;background:var(--b-line);border:1px solid var(--b-line);border-radius:8px;
+  overflow:hidden;margin:1rem 0 .5rem}
+.stat{background:var(--b-card);padding:12px 14px}
+.stat dt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--b-ink-3);margin:0 0 3px}
+.stat dd{margin:0;font-size:24px;font-weight:650;line-height:1;font-variant-numeric:tabular-nums}
+.stat.crit dd{color:var(--b-crit)}
+.stat.warn dd{color:var(--b-warn)}
+.stat.ok dd{color:var(--b-live)}
+.hint{font-size:12px;color:var(--b-ink-3);margin:0 0 22px}
+
+/* group heading */
+.group{margin-bottom:26px}
+.group-head{display:flex;align-items:baseline;gap:10px;
+  padding:0 2px 7px;border-bottom:1px solid var(--b-line);margin-bottom:2px}
+.group-head h2{font-size:13px;font-weight:650;margin:0;letter-spacing:.02em}
+.group-head .count{font-size:12px;color:var(--b-ink-3);font-variant-numeric:tabular-nums}
+.group-head .note{margin-left:auto;font-size:12px;color:var(--b-ink-3)}
+
+/* rows */
+.rows{display:flex;flex-direction:column}
+.row{display:grid;
+  grid-template-columns:minmax(0,1fr) 104px 104px 96px 116px 28px;
+  gap:14px;align-items:center;padding:13px 12px;background:var(--b-card);
+  border:1px solid var(--b-line-soft);border-top:none}
+.rows .row:first-child{border-top:1px solid var(--b-line-soft);border-radius:8px 8px 0 0}
+.rows .row:last-child{border-radius:0 0 8px 8px}
+.row:hover{background:#FBFBF9}
+.row.dead{background:#FAFAF8}
+.row.dead .title a{color:var(--b-ink-3)}
+.row.dead .sub{color:#AFAFA8}
+
+.row .title{font-weight:600;font-size:14px;line-height:1.35;margin:0 0 2px}
+.row .title a{color:var(--b-ink);text-decoration:none}
+.row .title a:hover{text-decoration:underline}
+.row .sub{font-size:12px;color:var(--b-ink-2);line-height:1.4;margin:0}
+.row .slug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:10.5px;color:var(--b-ink-3);margin-top:2px}
+
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 8px;
+  border-radius:20px;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:center}
+.pill.crit{background:var(--b-crit-bg);color:var(--b-crit)}
+.pill.warn{background:var(--b-warn-bg);color:var(--b-warn)}
+.pill.live{background:var(--b-live-bg);color:var(--b-live)}
+.pill.dead{background:var(--b-dead-bg);color:var(--b-dead)}
+.pill.plain{background:#F0F0EC;color:var(--b-ink-2)}
+
+.docs{display:flex;align-items:center;gap:6px;font-size:12.5px;
+  color:var(--b-ink-2);font-variant-numeric:tabular-nums}
+.bar{width:46px;height:5px;border-radius:3px;background:#E8E8E3;overflow:hidden;flex:none}
+.bar i{display:block;height:100%;background:var(--b-live)}
+.row.dead .bar i{background:var(--b-dead)}
+
+/* stage: a menu behind one button, not six open selects on a screen */
+details.stage{position:relative}
+details.stage>summary{font-size:12px;border:1px solid var(--b-line);background:var(--b-card);
+  color:var(--b-ink-2);padding:4px 8px;border-radius:5px;cursor:pointer;
+  list-style:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+details.stage>summary::-webkit-details-marker{display:none}
+details.stage>summary::after{content:" \25BE";color:var(--b-ink-3)}
+details.stage>summary:hover{border-color:var(--b-ink-3)}
+.stage-menu{position:absolute;z-index:20;right:0;margin-top:4px;background:var(--b-card);
+  border:1px solid var(--b-line);border-radius:7px;box-shadow:0 6px 18px rgba(0,0,0,.12);
+  padding:4px;display:flex;flex-direction:column;min-width:9rem}
+.stage-opt{font:inherit;font-size:12px;text-align:left;background:none;border:none;
+  padding:6px 9px;border-radius:5px;cursor:pointer;color:var(--b-ink-2);white-space:nowrap}
+.stage-opt:hover{background:#F0F4F8;color:var(--b-ink)}
+
+.go{color:var(--b-accent);text-decoration:none;font-size:16px;text-align:right}
+.go:hover{color:var(--b-ink)}
+
+/* past, collapsed */
+details.past{margin-top:6px}
+details.past>summary{cursor:pointer;font-size:13px;color:var(--b-ink-2);padding:9px 12px;
+  background:var(--b-card);border:1px solid var(--b-line-soft);border-radius:8px;
+  list-style:none;display:flex;align-items:center;gap:8px}
+details.past>summary::-webkit-details-marker{display:none}
+details.past>summary::before{content:"\25B8";color:var(--b-ink-3);font-size:11px}
+details.past[open]>summary{border-radius:8px 8px 0 0}
+details.past[open]>summary::before{content:"\25BE"}
+
+@media (max-width:760px){
+  .row{grid-template-columns:minmax(0,1fr) 104px;grid-auto-rows:min-content;row-gap:8px}
+  .row .docs,.row details.stage,.row .go{grid-column:1/-1}
+  .go{text-align:left}
+}
+
+/* closing-date entry, opened from the deadline pill */
+details.deadline>summary{list-style:none;cursor:pointer}
+details.deadline>summary::-webkit-details-marker{display:none}
+details.deadline>summary::after{content:""}
+.dl-label{display:flex;flex-direction:column;gap:3px;font-size:11px;
+  color:var(--b-ink-3);padding:4px 9px}
+.dl-label input[type=date]{font:inherit;font-size:12px;padding:3px 5px;
+  border:1px solid var(--b-line);border-radius:5px}
+
+/* alarms: the loudest thing on the page, and only when earned */
+.alert{border:1px solid var(--b-crit);background:var(--b-crit-bg);border-radius:8px;
+  padding:13px 16px;margin-bottom:14px;font-size:13px;color:var(--b-ink);line-height:1.55}
+.alert b{color:var(--b-crit)}
+.alert-list{margin:8px 0 0;padding-left:18px}
+.alert-list li{margin:3px 0}
+.alert-list a{color:var(--b-crit);font-weight:600}
+.alert-foot{display:block;margin-top:8px;font-size:12px;color:var(--b-ink-2)}
+.pill.wasted{display:inline-block;margin-top:4px;font-size:10.5px}
+.portal-date{border-bottom:1px solid var(--b-line-soft);padding-bottom:5px;margin-bottom:4px}
+
+/* hard-threshold flags: marked, never removed */
+.gate{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.pill.chip{font-size:10.5px;cursor:help}
+.gate-why{flex-basis:100%;font-size:11.5px;color:var(--b-crit);margin-top:2px}

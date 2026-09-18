@@ -1,0 +1,7 @@
+{
+  "_README": ["Levels for the invented test person. See seed_identity.json here."],
+  "cap_data_analysis": {"level": 4.0, "rationale": "Independently designs and runs the full analysis; not publishing methods work in its own right."},
+  "cap_program_admin": {"level": 3.5, "rationale": "Coordinated a multi-site program end to end; not line-managing staff."},
+  "cap_writing": {"level": 3.5, "rationale": "First-author papers and funder reports; not an editor or reviewer."},
+  "cap_office": {"level": 4.0, "rationale": "Daily use over ten years for budgets and reporting; no VBA or BI development."}
+}

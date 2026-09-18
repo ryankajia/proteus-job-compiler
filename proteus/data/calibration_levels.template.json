@@ -1,0 +1,25 @@
+{
+  "_README": [
+    "Copy to calibration_levels.json and write one entry per capability_unit id",
+    "in your seed_identity.json. Every capability MUST appear here — one that is",
+    "missing fails to load silently, and the criteria that needed it draw no",
+    "evidence at all.",
+    "",
+    "Scale: 1 Exposure / 2 Assisted / 3 Independent / 4 Advanced / 5 Authority.",
+    "",
+    "Write the rationale honestly in BOTH directions. State what you cannot yet",
+    "do as plainly as what you can — 'independently does X; has not yet done Y'.",
+    "The limit is what makes the claim credible, and it keeps you honest in the",
+    "interview. Guard equally against overclaiming and against the self-",
+    "underestimation that stops people applying for jobs they would get."
+  ],
+
+  "cap_example_analysis": {
+    "level": 3.0,
+    "rationale": "Independently designs and runs the analysis end to end, and decides what a dataset will support; not yet publishing methods work in its own right."
+  },
+  "cap_example_coordination": {
+    "level": 4.0,
+    "rationale": "Ran a multi-site programme of real scale — say the numbers — with full responsibility for reporting; advanced on current work alone."
+  }
+}

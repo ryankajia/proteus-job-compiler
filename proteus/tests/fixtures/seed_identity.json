@@ -1,0 +1,61 @@
+{
+  "_README": [
+    "An invented person, used only by the test suite.",
+    "Tests must not depend on the real user's seed_identity.json: that file is",
+    "private and git-ignored, so without this fixture the suite cannot run on a",
+    "fresh clone. It also means a change to someone's real CV can never break a",
+    "test."
+  ],
+  "profile": {
+    "name": "Test Person",
+    "title": "Environmental Data Analyst",
+    "email": "test@example.com",
+    "phone": "+61 400 000 000",
+    "location": "Example City, STATE",
+    "work_rights": "Australian citizen",
+    "summary": "Analyst with ten years of experience in environmental monitoring, data pipelines and reporting to funding bodies.",
+    "education": [
+      {"degree": "Ph.D., Environmental Science", "org": "Example University",
+       "period": "2012-2016", "detail": "Thesis on catchment-scale water quality modelling."},
+      {"degree": "B.Sc., Statistics", "org": "Example University", "period": "2008-2011", "detail": ""}
+    ],
+    "experience": [
+      {"role": "Senior Analyst", "org": "Example Institute", "period": "2018-present",
+       "bullets": ["Ran the analysis for a three-site monitoring program covering 12 staff.",
+                   "Built the reporting pipeline used for all funder submissions."]},
+      {"role": "Research Assistant", "org": "Example University", "period": "2016-2018",
+       "bullets": ["Cleaned and modelled field survey data across three studies."]}
+    ],
+    "languages": ["English (native)"]
+  },
+  "personas": {
+    "researcher": "Research positioning: publications, methods, grants.",
+    "builder": "Engineering positioning: pipelines, tooling, shipped systems.",
+    "manager": "Coordination positioning: budgets, reporting, multi-party delivery.",
+    "polymath": "Mixed positioning for a job spanning more than one of the above."
+  },
+  "evidence": [
+    {"id": "ev_paper", "type": "paper", "ref": "Person, T. (2020). Catchment water quality modelling. Journal of Example Science, 4(2), 1-12.", "verifiable": true, "note": "First author."},
+    {"id": "ev_repo", "type": "repo", "ref": "Monitoring analysis pipeline: Python/pandas cleaning, modelling and figures.", "verifiable": true, "note": ""},
+    {"id": "ev_program", "type": "project", "ref": "Three-site environmental monitoring program, 12 personnel, 2019-2024; reporting and budget coordination.", "verifiable": true, "note": "Coordinator, not principal investigator."},
+    {"id": "ev_office", "type": "project", "ref": "Ten years of funder reporting in Word and Excel, including budget reconciliation.", "verifiable": true, "note": ""}
+  ],
+  "capability_units": [
+    {"id": "cap_data_analysis", "domain": "stats",
+     "statement": "Python for scientific data analysis: pandas and scipy for cleaning, transforming and modelling field datasets.",
+     "evidence": ["ev_repo", "ev_paper"],
+     "keywords": ["Python", "pandas", "data analysis", "statistics", "data pipeline"]},
+    {"id": "cap_program_admin", "domain": "management",
+     "statement": "Program coordination: multi-site reporting, budgets and milestone tracking for a funded program.",
+     "evidence": ["ev_program"],
+     "keywords": ["project management", "coordination", "reporting", "grant management", "research administration"]},
+    {"id": "cap_writing", "domain": "research",
+     "statement": "Technical writing: peer-reviewed papers and reports written for external funding bodies.",
+     "evidence": ["ev_paper", "ev_program"],
+     "keywords": ["scientific writing", "reporting", "communication"]},
+    {"id": "cap_office", "domain": "management",
+     "statement": "Office software: Word, Excel and PowerPoint used throughout reporting and budget work.",
+     "evidence": ["ev_office"],
+     "keywords": ["Excel", "Word", "MsOffice", "spreadsheets", "office software"]}
+  ]
+}
