@@ -63,3 +63,15 @@ def test_actual_outcome_dates_are_editable_without_changing_status(tmp_path):
     assert 'name="submitted_at" value="2026-09-01"' in page
     assert 'name="rejected_at" value="2026-09-12"' in page
     assert conn.execute("SELECT status FROM pipeline WHERE job_id=?", (job_id,)).fetchone()[0] == "sensed"
+
+
+def test_applied_category_counts_use_manual_choice(tmp_path):
+    conn = db.connect(tmp_path / "tracker.db")
+    job_id = _job(conn)
+    conn.execute("UPDATE pipeline SET status='rejected',role_category='临床' WHERE job_id=?", (job_id,))
+    conn.commit()
+    rows = webapp._board_rows(conn)
+    overview = webapp._plain_overview(conn, rows)
+    assert '<th scope="row">临床</th><td>1</td><td>1</td>' in overview
+    assert 'name="role_category"' in webapp.render_track(conn, job_id).decode()
+    assert webapp._role_category({"title": "Clinical Assistant", "role_category": "研究"}) == "研究"

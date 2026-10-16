@@ -90,7 +90,9 @@ and document compilation still work.
 
 The top of the board now shows jobs added today, open roles above the initial
 fit threshold, starred roles, recorded submissions, rejections, and the time
-between recorded submission and rejection events. Search leads are displayed
+between recorded submission and rejection events. The application table counts
+submissions and rejections by role type; title-based types are provisional until
+you select a type on the job tracking page. Search leads are displayed
 separately under **AI 找岗位**. Add a promising vacancy to the board only after
 checking the employer's current page, job ID, closing date and eligibility.
 Search does not scrape or import jobs automatically. Search results are saved

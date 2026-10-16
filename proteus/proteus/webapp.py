@@ -109,6 +109,26 @@ def _page(title: str, body: str) -> bytes:
 
 
 _VISA_BLOCKERS = ("citizenship", "clearance", "pr/citizenship")
+ROLE_CATEGORIES = ("研究", "临床", "行政", "数据/技术", "项目/政策", "其他", "待确认")
+
+
+def _role_category(row: dict) -> str:
+    """Use a manual label first; title hints are provisional only."""
+    chosen = row.get("role_category")
+    if chosen in ROLE_CATEGORIES:
+        return chosen
+    title = (row.get("title") or "").lower()
+    if any(term in title for term in ("clinical", "clinician", "nurse", "allied health", "patient", "trial coordinator")):
+        return "临床"
+    if any(term in title for term in ("research", "postdoc", "fellow", "scientist", "laboratory")):
+        return "研究"
+    if any(term in title for term in ("data", "analyst", "software", "developer", "engineer")):
+        return "数据/技术"
+    if any(term in title for term in ("admin", "executive assistant", "reception", "office assistant")):
+        return "行政"
+    if any(term in title for term in ("project", "program", "policy", "coordinator", "officer")):
+        return "项目/政策"
+    return "待确认"
 
 
 def _visa_blocked(visa_requirement) -> bool:
@@ -667,7 +687,7 @@ def _board_rows(conn: sqlite3.Connection) -> list[dict]:
     row — with no shared key between the two views.
     """
     pipe = {r["job_id"]: r for r in conn.execute(
-        "SELECT job_id, status, started_on_portal, interested, submitted_at, rejected_at FROM pipeline")}
+        "SELECT job_id, status, started_on_portal, interested, submitted_at, rejected_at, role_category FROM pipeline")}
     statuses = {k: v["status"] for k, v in pipe.items()}
 
     root = Path(__file__).resolve().parent.parent
@@ -706,6 +726,7 @@ def _board_rows(conn: sqlite3.Connection) -> list[dict]:
             "interested": bool(pipe[jr["id"]]["interested"]) if jr["id"] in pipe else False,
             "submitted_at": (pipe[jr["id"]]["submitted_at"] if jr["id"] in pipe else "") or "",
             "rejected_at": (pipe[jr["id"]]["rejected_at"] if jr["id"] in pipe else "") or "",
+            "role_category": (pipe[jr["id"]]["role_category"] if jr["id"] in pipe else "") or "",
             "created_at": jr["created_at"],
             "started_on_portal": (pipe[jr["id"]]["started_on_portal"]
                                   if jr["id"] in pipe else "") or "",
@@ -906,7 +927,7 @@ def _plain_overview(conn: sqlite3.Connection, rows: list[dict]) -> str:
                                  -r["fit_score"]))
     liked.sort(key=lambda r: r["closes_on"] or _dt.date.max)
     history = []
-    type_stats: dict[str, list[int | None]] = {}
+    type_stats: dict[str, dict[str, int]] = {}
     for r in sorted(sent, key=lambda x: events.get(x["id"], {}).get("applied", ""), reverse=True):
         ev = events.get(r["id"], {})
         start = (r.get("submitted_at") or ev.get("applied", ""))[:10]
@@ -918,21 +939,19 @@ def _plain_overview(conn: sqlite3.Connection, rows: list[dict]) -> str:
                 days = f" · {elapsed} 天后收到拒信"
             except ValueError:
                 pass
+        category = _role_category(r)
+        stats = type_stats.setdefault(category, {"sent": 0, "rejected": 0})
+        stats["sent"] += 1
         if r["status"] == "rejected":
-            title_low = (r["title"] or "").lower()
-            category = ("研究类" if any(t in title_low for t in ("research", "postdoc", "fellow", "scientist"))
-                        else "数据/技术类" if any(t in title_low for t in ("data", "analyst", "software", "developer", "engineer"))
-                        else "行政/项目类" if any(t in title_low for t in ("admin", "officer", "coordinator", "project", "program"))
-                        else "其他/待归类")
-            type_stats.setdefault(category, []).append(elapsed if days else None)
+            stats["rejected"] += 1
         state = "已拒绝" if r["status"] == "rejected" else "面试中" if r["status"] == "interviewing" else "录用" if r["status"] == "offer" else "已投递"
         history.append(f'<li><b>{html.escape(r["title"] or "未命名岗位")}</b> · '
                        f'{html.escape(r["org"] or "机构待核对")} · {state}'
-                       f' · 投递 {html.escape(start or "日期待补")}{days}</li>')
-    type_lines = "".join(
-        f'<li>{html.escape(category)}：{len(values)} 次拒绝'
-        + (f'；已知间隔 {", ".join(str(v) for v in values if v is not None)} 天' if any(v is not None for v in values) else '；缺投递或拒绝日期')
-        + '</li>' for category, values in sorted(type_stats.items()))
+                       f' · {html.escape(category)} · 投递 {html.escape(start or "日期待补")}{days}</li>')
+    type_rows = "".join(
+        f'<tr><th scope="row">{html.escape(category)}</th><td>{stats["sent"]}</td>'
+        f'<td>{stats["rejected"]}</td></tr>'
+        for category, stats in sorted(type_stats.items(), key=lambda item: (-item[1]["sent"], item[0])))
     return f'''<section class="overview">
       <h2>今天先看这里 <small>{today.isoformat()}</small></h2>
       <div class="overview-numbers">
@@ -947,8 +966,11 @@ def _plain_overview(conn: sqlite3.Connection, rows: list[dict]) -> str:
         <div class="overview-panel"><h3>优先看的岗位</h3>{list_or_empty(suitable, "目前没有已记录且符合初筛的开放岗位。")}</div>
         <div class="overview-panel"><h3>我想做的岗位</h3>{list_or_empty(liked, "点岗位旁的 ☆ 想做，收藏你真正感兴趣的工作。")}</div>
         <div class="overview-panel wide"><h3>投递记录与结果</h3>
+          <h4>按岗位类型</h4>
+          {('<table class="category-table"><thead><tr><th>类型</th><th>已投递</th><th>已拒绝</th></tr></thead><tbody>' + type_rows + '</tbody></table>') if type_rows else '<p class="overview-empty">还没有确认投递记录。</p>'}
+          <p class="overview-caveat">分类优先使用你在岗位跟踪页选择的类型；未选择时按岗位标题暂时归类，可随时修改。</p>
+          <h4>逐岗位记录</h4>
           {('<ul class="overview-list history">' + ''.join(history) + '</ul>') if history else '<p class="overview-empty">还没有确认投递记录。</p>'}
-          {('<h3>被拒岗位类型</h3><ul class="overview-list">' + type_lines + '</ul>') if type_lines else ''}
           <p class="overview-caveat">拒绝所用天数仅在投递和拒绝事件都有日期时显示；岗位类型样本很少时，不应只凭拒绝次数排除整个类别。</p>
         </div>
       </div>
@@ -1009,7 +1031,7 @@ def render_board(conn: sqlite3.Connection) -> bytes:
             '<span><a class="btn secondary" href="/log">详细记录</a> '
             '<form class="inline" method="post" action="/sync">'
             f'<button class="btn secondary" type="submit" title="{html.escape(sync_title, quote=True)}">Sync master CV</button></form> '
-            '<a class="btn secondary" href="/help" title="How to use this">?</a> '
+            '<a class="btn secondary" href="/help" title="使用说明">使用说明</a> '
             '<a class="btn secondary" href="/new">根据招聘信息准备材料</a> '
             '<a class="btn secondary" href="/discover">AI 找岗位</a> '
             '<a class="btn" href="/quick">+ 记录岗位</a></span></div>']
@@ -1060,6 +1082,9 @@ def render_log(conn: sqlite3.Connection) -> bytes:
 def render_discover(message: str = "") -> bytes:
     result_file = OUT / "latest_job_search.md"
     result = result_file.read_text(encoding="utf-8") if result_file.exists() else ""
+    checked_file = OUT / "checked_job_leads.md"
+    checked = checked_file.read_text(encoding="utf-8") if checked_file.exists() else ""
+    checked_html = '<div class="card doc"><h2>已核对的官方岗位线索</h2>' + _md_to_html(checked) + '</div>' if checked else ''
     notice = f'<p class="err">{html.escape(message)}</p>' if message else ""
     content = _md_to_html(result) if result else '<p>还没有搜索结果。设置 MiniMax API key 后点击“搜索现在的岗位”。</p>'
     body = (f'<div class="topbar"><h1>找适合我的岗位</h1><a class="btn secondary" href="/">← 返回看板</a></div>'
@@ -1067,7 +1092,8 @@ def render_discover(message: str = "") -> bytes:
             '<form method="post" action="/discover"><label>这次想找什么岗位'
             '<input name="query" value="Australia research assistant data analyst health administration" maxlength="1000"></label>'
             '<p><button class="btn" type="submit">搜索现在的岗位</button></p></form></div>'
-            f'<div class="card doc"><h2>最近一次搜索</h2>{content}</div>')
+            f'{checked_html}'
+            f'<div class="card doc"><h2>最近一次 MiniMax 搜索</h2>{content}</div>')
     return _page("找岗位", body)
 
 
@@ -1153,9 +1179,14 @@ def render_track(conn: sqlite3.Connection, job_id: str) -> bytes:
     if row is None:
         return _page("Not found", '<p>No such job.</p><a href="/">← Board</a>')
     items = tracking.get(conn, job_id)
-    timeline = conn.execute("SELECT submitted_at,rejected_at FROM pipeline WHERE job_id=?", (job_id,)).fetchone()
+    timeline = conn.execute("SELECT submitted_at,rejected_at,role_category FROM pipeline WHERE job_id=?", (job_id,)).fetchone()
     submitted_at = html.escape((timeline["submitted_at"] if timeline else "") or "", quote=True)
     rejected_at = html.escape((timeline["rejected_at"] if timeline else "") or "", quote=True)
+    role_category = (timeline["role_category"] if timeline else "") or ""
+    category_options = '<option value="">按岗位标题暂时归类</option>' + ''.join(
+        f'<option value="{html.escape(category, quote=True)}"'
+        f'{" selected" if category == role_category else ""}>{html.escape(category)}</option>'
+        for category in ROLE_CATEGORIES)
     meta = _job_meta(row["source"] or "")
     reference = re.search(r"^Position number:\s*(.+)$", row["raw_text"] or "", re.M)
     ref = f' · Position number: <b>{html.escape(reference.group(1))}</b>' if reference else ""
@@ -1189,12 +1220,13 @@ Submit and receiving the confirmation separately.</p>
 <table><thead><tr><th>Item</th><th>Needed?</th><th>Complete?</th><th>Details / file used</th></tr></thead>
 <tbody>{"".join(rows)}</tbody></table>
 <p><button class="btn" type="submit">Save checklist</button></p></form></div>
-<div class="card"><h2>实际投递与结果日期</h2>
+<div class="card"><h2>岗位分类与实际日期</h2>
 <p>旧记录如有确认邮件或拒信，请按邮件日期补录；不确定就留空。填日期不会代替申请状态或确认邮件。</p>
 <form method="post" action="/timeline/save"><input type="hidden" name="job_id" value="{html.escape(job_id, quote=True)}">
-<div class="fields"><label>确认投递日期<input type="date" name="submitted_at" value="{submitted_at}"></label>
+<div class="fields"><label>岗位类型<select name="role_category">{category_options}</select></label>
+<label>确认投递日期<input type="date" name="submitted_at" value="{submitted_at}"></label>
 <label>收到拒信日期<input type="date" name="rejected_at" value="{rejected_at}"></label></div>
-<p><button class="btn secondary" type="submit">保存实际日期</button></p></form></div>
+<p><button class="btn secondary" type="submit">保存分类与日期</button></p></form></div>
 <p class="sub">Check the position number on the official page before uploading. Answer personal declarations in the employer's form yourself.</p>'''
     return _page(row["title"] or "Job checklist", body)
 
@@ -1674,6 +1706,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(b"Not found", 404)
             elif self.path == "/timeline/save":
                 job_id = (fields.get("job_id") or [""])[0]
+                category = (fields.get("role_category") or [""])[0].strip()
                 submitted_raw = (fields.get("submitted_at") or [""])[0].strip()
                 rejected_raw = (fields.get("rejected_at") or [""])[0].strip()
                 submitted = jobspec.parse_closing_date(submitted_raw) if submitted_raw else None
@@ -1684,10 +1717,12 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(_page("日期无效", '<p>请检查日期格式。</p><a href="/">返回看板</a>'), 400)
                 elif submitted and rejected and rejected < submitted:
                     self._send(_page("日期顺序错误", '<p>拒信日期不能早于投递日期。</p><a href="/">返回看板</a>'), 400)
+                elif category and category not in ROLE_CATEGORIES:
+                    self._send(_page("分类无效", '<p>请选择列表中的岗位类型。</p><a href="/">返回看板</a>'), 400)
                 else:
-                    conn.execute("UPDATE pipeline SET submitted_at=?,rejected_at=? WHERE job_id=?",
+                    conn.execute("UPDATE pipeline SET submitted_at=?,rejected_at=?,role_category=? WHERE job_id=?",
                                  (submitted.isoformat() if submitted else None,
-                                  rejected.isoformat() if rejected else None, job_id))
+                                  rejected.isoformat() if rejected else None, category or None, job_id))
                     conn.commit()
                     self._redirect(f"/track/{urllib.parse.quote(job_id)}")
             elif self.path == "/fetch":

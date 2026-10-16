@@ -65,6 +65,8 @@ def draft_selection(worksheet: str) -> str:
         with urllib.request.urlopen(request, timeout=90) as response:
             data = json.load(response)
     except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            raise RuntimeError("MiniMax 拒绝了当前 API key（401）。请在 MiniMax 控制台重新生成并替换本机配置文件中的 key。") from exc
         raise RuntimeError(f"MiniMax 返回 HTTP {exc.code}。请检查 API key、额度和模型权限。") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError("无法连接 MiniMax，请稍后重试。") from exc
@@ -102,6 +104,8 @@ def search_jobs(query: str) -> str:
         with urllib.request.urlopen(request, timeout=180) as response:
             data = json.load(response)
     except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            raise RuntimeError("MiniMax 拒绝了当前 API key（401）。请在 MiniMax 控制台重新生成并替换本机配置文件中的 key。") from exc
         raise RuntimeError(f"MiniMax 搜索返回 HTTP {exc.code}。请检查额度和模型权限。") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError("无法完成 MiniMax 搜索，请稍后重试。") from exc
