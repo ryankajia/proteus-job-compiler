@@ -8,9 +8,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-URL = "https://api.minimax.io/v1/chat/completions"
 MODEL = "MiniMax-M2.7"
 PRIVATE_CONFIG = Path(__file__).resolve().parents[2] / "my-materials" / "config" / "minimax.env"
+API_HOSTS = {"https://api.minimax.io", "https://api.minimaxi.com"}
 
 
 def _setting(name: str) -> str:
@@ -38,6 +38,13 @@ def available() -> bool:
     return bool(_setting("MINIMAX_API_KEY"))
 
 
+def _api_host() -> str:
+    host = _setting("MINIMAX_API_HOST").rstrip("/") or "https://api.minimax.io"
+    if host not in API_HOSTS:
+        raise RuntimeError("MINIMAX_API_HOST 只能是 MiniMax 国际区或中国区官方 API 地址。")
+    return host
+
+
 def draft_selection(worksheet: str) -> str:
     key = _setting("MINIMAX_API_KEY")
     if not key:
@@ -57,7 +64,7 @@ def draft_selection(worksheet: str) -> str:
         "max_completion_tokens": 7000,
     }
     request = urllib.request.Request(
-        URL, json.dumps(payload).encode("utf-8"),
+        _api_host() + "/v1/chat/completions", json.dumps(payload).encode("utf-8"),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         method="POST",
     )
@@ -66,7 +73,7 @@ def draft_selection(worksheet: str) -> str:
             data = json.load(response)
     except urllib.error.HTTPError as exc:
         if exc.code == 401:
-            raise RuntimeError("MiniMax 拒绝了当前 API key（401）。请在 MiniMax 控制台重新生成并替换本机配置文件中的 key。") from exc
+            raise RuntimeError("MiniMax 鉴权失败（401）。请核对 MINIMAX_API_HOST 与订阅 Key 所属地区是否一致。") from exc
         raise RuntimeError(f"MiniMax 返回 HTTP {exc.code}。请检查 API key、额度和模型权限。") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError("无法连接 MiniMax，请稍后重试。") from exc
@@ -89,14 +96,16 @@ def search_jobs(query: str) -> str:
     payload = {
         "model": "MiniMax-M3",
         "input": ("Search current Australian job vacancies for: " + query[:1000] +
-                  ". Return at most 10 roles with title, employer, source URL, "
+                  ". Return at most 10 candidate roles with title, employer, a direct official job-detail URL, "
                   "closing date when shown, citizenship/visa/clearance requirement when shown. "
-                  "Mark unknown fields unknown. Exclude roles whose closing date is already past. "
+                  "Mark unknown fields unknown. Do not use aggregators or listing pages as evidence for an individual role. "
+                  "Exclude roles whose closing date is already past, missing, or contradictory. "
+                  "Never claim a role is verified; these are leads requiring manual official-page review. "
                   "Do not invent a vacancy or deadline. Today's date is " + dt.date.today().isoformat()),
         "tools": [{"type": "web_search"}],
     }
     request = urllib.request.Request(
-        "https://api.minimax.io/v1/responses", json.dumps(payload).encode("utf-8"),
+        _api_host() + "/v1/responses", json.dumps(payload).encode("utf-8"),
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         method="POST",
     )
@@ -105,7 +114,7 @@ def search_jobs(query: str) -> str:
             data = json.load(response)
     except urllib.error.HTTPError as exc:
         if exc.code == 401:
-            raise RuntimeError("MiniMax 拒绝了当前 API key（401）。请在 MiniMax 控制台重新生成并替换本机配置文件中的 key。") from exc
+            raise RuntimeError("MiniMax 鉴权失败（401）。请核对 MINIMAX_API_HOST 与订阅 Key 所属地区是否一致。") from exc
         raise RuntimeError(f"MiniMax 搜索返回 HTTP {exc.code}。请检查额度和模型权限。") from exc
     except (urllib.error.URLError, TimeoutError) as exc:
         raise RuntimeError("无法完成 MiniMax 搜索，请稍后重试。") from exc

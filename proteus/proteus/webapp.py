@@ -1093,7 +1093,9 @@ def render_discover(message: str = "") -> bytes:
             '<input name="query" value="Australia research assistant data analyst health administration" maxlength="1000"></label>'
             '<p><button class="btn" type="submit">搜索现在的岗位</button></p></form></div>'
             f'{checked_html}'
-            f'<div class="card doc"><h2>最近一次 MiniMax 搜索</h2>{content}</div>')
+            f'<div class="card doc"><h2>MiniMax 原始候选（尚未核实）</h2>'
+            '<p class="overview-caveat">AI 可能引用过期或相互矛盾的招聘信息；请先打开雇主的具体岗位页核对，再决定是否记录。</p>'
+            f'{content}</div>')
     return _page("找岗位", body)
 
 

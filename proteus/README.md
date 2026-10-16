@@ -80,6 +80,11 @@ For a double-click launch, create the ignored local file
 MINIMAX_API_KEY=your-key-here
 ```
 
+MiniMax has separate international and China API hosts. For a key issued by
+the China platform, add `MINIMAX_API_HOST=https://api.minimaxi.com` on a second
+line; the default is `https://api.minimax.io`. The host setting accepts only
+these two official API addresses. A 401 response can mean a region mismatch.
+
 Keep the file private (`chmod 600 my-materials/config/minimax.env`). You can
 instead set `MINIMAX_API_KEY` in the terminal environment; it takes priority
 over the file. Do not paste the key into the dashboard or commit it. The default

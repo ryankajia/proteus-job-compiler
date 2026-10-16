@@ -61,10 +61,19 @@ def test_search_exposes_source_urls_and_requires_key(monkeypatch):
 
 def test_private_config_is_literal_and_environment_takes_priority(monkeypatch, tmp_path):
     config = tmp_path / "minimax.env"
-    config.write_text("# local only\nMINIMAX_API_KEY='synthetic-file-key'\nMINIMAX_MODEL=MiniMax-M2.7\n")
+    config.write_text("# local only\nMINIMAX_API_KEY='synthetic-file-key'\n"
+                      "MINIMAX_MODEL=MiniMax-M2.7\nMINIMAX_API_HOST=https://api.minimaxi.com\n")
     monkeypatch.setattr(minimax_ai, "PRIVATE_CONFIG", config)
     monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
     assert minimax_ai.available()
     assert minimax_ai._setting("MINIMAX_API_KEY") == "synthetic-file-key"
+    assert minimax_ai._api_host() == "https://api.minimaxi.com"
     monkeypatch.setenv("MINIMAX_API_KEY", "synthetic-environment-key")
     assert minimax_ai._setting("MINIMAX_API_KEY") == "synthetic-environment-key"
+
+
+def test_only_official_api_hosts_are_accepted(monkeypatch, tmp_path):
+    monkeypatch.setattr(minimax_ai, "PRIVATE_CONFIG", tmp_path / "absent.env")
+    monkeypatch.setenv("MINIMAX_API_HOST", "https://example.com")
+    with pytest.raises(RuntimeError, match="MINIMAX_API_HOST"):
+        minimax_ai._api_host()
