@@ -133,8 +133,10 @@ every later commit. `git commit --no-verify` overrides it — a guard, not a cag
 Keep short or ambiguous strings out of the list. A rule that fires on every
 commit gets bypassed, and then protects nothing.
 
-**Your data never leaves your machine.** `my-materials/`, the database and the
-identity file are all git-ignored. Check `.gitignore` before pushing anywhere.
+**Private data is excluded from GitHub.** `my-materials/`, the database and the
+identity file are git-ignored. Check `.gitignore` before pushing anywhere.
+If you choose the optional MiniMax writing button, the selected job's evidence
+worksheet is sent to MiniMax to generate a draft. Review its contents first.
 
 ---
 
@@ -155,8 +157,9 @@ identity file are all git-ignored. Check `.gitignore` before pushing anywhere.
 - Built for **Australia**. The selection-criteria machinery is the whole point
   here and is probably wasted elsewhere, though the evidence ledger and the
   résumé compiler are not country-specific.
-- **Visa logic assumes you are not a citizen or permanent resident** — roles
-  demanding citizenship or a security clearance are scored down and greyed.
-  If that does not apply to you, empty `VISA_BLOCKERS` in `proteus/fit.py`.
+- **Visa scoring is conservative by default.** Roles demanding citizenship,
+  permanent residency or a security clearance are scored down for review,
+  not removed. Verify eligibility against the official advert and your own
+  status before applying.
 
 MIT licensed. Take it, fork it, cut out the parts you do not need.

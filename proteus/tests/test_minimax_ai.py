@@ -41,6 +41,7 @@ def test_draft_sends_evidence_guardrails_and_uses_environment_key(monkeypatch):
 
 
 def test_search_exposes_source_urls_and_requires_key(monkeypatch):
+    monkeypatch.setattr(minimax_ai, "PRIVATE_CONFIG", Path("/nonexistent/synthetic-minimax.env"))
     monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="MINIMAX_API_KEY"):
         minimax_ai.search_jobs("synthetic role")
@@ -56,3 +57,14 @@ def test_search_exposes_source_urls_and_requires_key(monkeypatch):
     monkeypatch.setattr(minimax_ai.urllib.request, "urlopen", fake_open)
     result = minimax_ai.search_jobs("synthetic role")
     assert "https://example.com/job" in result
+
+
+def test_private_config_is_literal_and_environment_takes_priority(monkeypatch, tmp_path):
+    config = tmp_path / "minimax.env"
+    config.write_text("# local only\nMINIMAX_API_KEY='synthetic-file-key'\nMINIMAX_MODEL=MiniMax-M2.7\n")
+    monkeypatch.setattr(minimax_ai, "PRIVATE_CONFIG", config)
+    monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+    assert minimax_ai.available()
+    assert minimax_ai._setting("MINIMAX_API_KEY") == "synthetic-file-key"
+    monkeypatch.setenv("MINIMAX_API_KEY", "synthetic-environment-key")
+    assert minimax_ai._setting("MINIMAX_API_KEY") == "synthetic-environment-key"

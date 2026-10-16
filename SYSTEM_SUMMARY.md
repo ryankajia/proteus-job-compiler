@@ -125,9 +125,8 @@ board reads as progress.
 module scans finalised criteria files from past applications, strips scaffolding,
 and matches by content-word Jaccard similarity (threshold 0.16). A hit is
 inserted as a labelled draft showing its source package and score. It **excludes
-the job's own answers** so it cannot match itself. Measured on a real 9-criterion
-PD: 5 of 9 pre-filled from your own approved prose — including the one
-criterion the evidence ledger could not answer at all.
+the job's own answers** so it cannot match itself. Reused prose remains a
+draft that must be checked against the new role and its official PD.
 
 ## 5. Traps that have already caused real damage
 
@@ -142,9 +141,8 @@ must stay learnable. If you change the scaffolding format, update that regex.
 
 **A capability missing from `calibration_levels.json` silently vanishes.** It sits in
 the seed, fails to load, and the criteria that needed it draw no evidence. This
-happened to `cap_office_suite`: the person's Word/Excel/PowerPoint capability was
-absent for weeks while criteria explicitly asking for advanced Excel went
-unanswered.
+can happen if an office-software capability lacks a calibration entry while
+criteria explicitly ask for advanced Excel.
 
 **JavaScript inside an f-string.** `webapp.py` renders HTML from f-strings. Every
 literal `{` and `}` in embedded JS must be doubled or the module will not parse.
@@ -155,8 +153,9 @@ named things like `24/08/2026 HR125 Page 1 of 3`.
 
 ## 6. Compliance posture — do not "improve" this away
 
-Deliberately absent: job-board crawling, link discovery, scheduled re-fetching,
-auto-submit. `joburl.py` reads one URL per click and returns the text for review
+Deliberately absent: job-board crawling, scheduled re-fetching and auto-submit.
+Optional MiniMax web search returns leads for human verification. `joburl.py`
+reads one URL per click and returns the text for review
 — assisted paste, not a crawler. LinkedIn is refused outright without a request.
 SEEK and Indeed block scripts and the error message says so rather than
 suggesting a retry.
@@ -183,7 +182,7 @@ pushing.
 │   ├── proteus/             modules (see §3)
 │   ├── scripts/             orchestration entry points
 │   ├── data/                *.template.json, sample_jobs/
-│   ├── tests/               270 tests, pure stdlib
+│   ├── tests/               offline tests (pytest)
 │   ├── GUIDE.md             three-step quick start
 └── my-materials/            private data, git-ignored (see its own README)
 ```
@@ -200,7 +199,7 @@ pushing.
 - `.generated/` holds the snapshot each build diffs against. Do not edit it.
 - Every autonomous change is logged in `my-materials/reference/DECISIONS.md`
   with date, what, and why. It is private: it names real vacancies and outcomes.
-- Tests are stdlib-only and must stay that way: `python3 -m pytest`.
+- Runtime code uses the standard library; run tests with `python3 -m pytest`.
 
 ## 10. Running it
 
@@ -211,7 +210,7 @@ cp data/seed_identity.template.json data/seed_identity.json
 python3 scripts/seed.py              # load + calibrate
 python3 -m proteus.webapp            # dashboard at localhost:8765
 python3 scripts/apply.py [slug]      # rebuild packages from the terminal
-python3 -m pytest                    # 270 tests
+python3 -m pytest                    # offline test suite
 ```
 
 Python 3.11+, standard library only. `anthropic` is optional and unused by

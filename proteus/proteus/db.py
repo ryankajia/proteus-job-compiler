@@ -10,7 +10,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 DEFAULT_DB = Path(__file__).resolve().parent.parent / "databases" / "proteus.db"
 
@@ -144,4 +144,6 @@ def migrate(conn: sqlite3.Connection) -> None:
     _ensure_column(conn, "jobspecs", "closes_at", "TEXT")
     _ensure_column(conn, "pipeline", "started_on_portal", "TEXT")
     _ensure_column(conn, "pipeline", "interested", "INTEGER NOT NULL DEFAULT 0")
+    _ensure_column(conn, "pipeline", "submitted_at", "TEXT")
+    _ensure_column(conn, "pipeline", "rejected_at", "TEXT")
     conn.commit()

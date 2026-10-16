@@ -73,6 +73,12 @@
       '“Added today” uses the date saved in this system. “Worth checking” counts open roles with a link, known deadline and initial fit. Verify the employer page before applying. A submission counts when the confirmation email arrives.'],
     ['拒绝所用天数仅在投递和拒绝事件都有日期时显示；岗位类型样本很少时，不应只凭拒绝次数排除整个类别。',
       'Days to rejection are shown only when both dates are recorded. Small samples are not enough to rule out a whole role type.'],
+    ['实际投递与结果日期', 'Actual submission and outcome dates'],
+    ['确认投递日期', 'Confirmed submission date'],
+    ['收到拒信日期', 'Rejection email date'],
+    ['保存实际日期', 'Save actual dates'],
+    ['旧记录如有确认邮件或拒信，请按邮件日期补录；不确定就留空。填日期不会代替申请状态或确认邮件。',
+      'For older records, enter the date shown on the confirmation or rejection email. Leave uncertain dates blank. Dates do not replace application status or a confirmation email.'],
     ['搜索会调用 MiniMax 的实时网页搜索。结果是线索，请打开雇主原文核对岗位、资格与截止日期；确认后点“+ 记录岗位”加入看板。',
       'Search uses MiniMax live web search. Treat results as leads: verify the employer page, eligibility and deadline, then track the role.'],
     ['还没有确认投递记录。', 'No confirmed applications recorded yet.'],
@@ -132,6 +138,10 @@
     'Biggest gaps — the cram list:': '主要差距：',
     'No obvious gaps: every requirement has evidence behind it.': '未发现明显证据缺口。'
   };
+  enToZh['Actual submission and outcome dates'] = '实际投递与结果日期';
+  enToZh['Confirmed submission date'] = '确认投递日期';
+  enToZh['Rejection email date'] = '收到拒信日期';
+  enToZh['Save actual dates'] = '保存实际日期';
   var longPairs = [
     ['Check “Required” for what this vacancy asks for. Check “Done” only after completing that step.\nFor documents, “Done” means uploaded on the employer\'s site. The final two rows record pressing\nSubmit and receiving the confirmation separately.',
       '岗位要求的项目勾选“需要”；完成后才勾选“已完成”。文件的“已完成”表示已上传到雇主网站。最后两行分别记录点击 Submit 和收到确认邮件。'],

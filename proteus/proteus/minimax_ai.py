@@ -6,21 +6,44 @@ import os
 import datetime as dt
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 URL = "https://api.minimax.io/v1/chat/completions"
 MODEL = "MiniMax-M2.7"
+PRIVATE_CONFIG = Path(__file__).resolve().parents[2] / "my-materials" / "config" / "minimax.env"
+
+
+def _setting(name: str) -> str:
+    """Environment wins; read only literal values from the ignored local config."""
+    value = os.environ.get(name, "").strip()
+    if value:
+        return value
+    try:
+        lines = PRIVATE_CONFIG.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return ""
+    except OSError as exc:
+        raise RuntimeError("无法读取本机 MiniMax 配置文件。") from exc
+    for line in lines:
+        key, separator, raw = line.partition("=")
+        if separator and key.strip() == name:
+            value = raw.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            return value
+    return ""
 
 
 def available() -> bool:
-    return bool(os.environ.get("MINIMAX_API_KEY"))
+    return bool(_setting("MINIMAX_API_KEY"))
 
 
 def draft_selection(worksheet: str) -> str:
-    key = os.environ.get("MINIMAX_API_KEY")
+    key = _setting("MINIMAX_API_KEY")
     if not key:
-        raise RuntimeError("请先在启动系统的终端设置 MINIMAX_API_KEY。")
+        raise RuntimeError("请在 my-materials/config/minimax.env 中设置 MINIMAX_API_KEY。")
     payload = {
-        "model": os.environ.get("MINIMAX_MODEL", MODEL),
+        "model": _setting("MINIMAX_MODEL") or MODEL,
         "messages": [
             {"role": "system", "content": (
                 "You draft Australian selection criteria in English. Use only facts and evidence "
@@ -58,9 +81,9 @@ def draft_selection(worksheet: str) -> str:
 
 def search_jobs(query: str) -> str:
     """Search the live web; return cited prose for review, never auto-import jobs."""
-    key = os.environ.get("MINIMAX_API_KEY")
+    key = _setting("MINIMAX_API_KEY")
     if not key:
-        raise RuntimeError("请先在启动系统的终端设置 MINIMAX_API_KEY。")
+        raise RuntimeError("请在 my-materials/config/minimax.env 中设置 MINIMAX_API_KEY。")
     payload = {
         "model": "MiniMax-M3",
         "input": ("Search current Australian job vacancies for: " + query[:1000] +

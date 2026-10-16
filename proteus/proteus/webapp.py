@@ -667,7 +667,7 @@ def _board_rows(conn: sqlite3.Connection) -> list[dict]:
     row — with no shared key between the two views.
     """
     pipe = {r["job_id"]: r for r in conn.execute(
-        "SELECT job_id, status, started_on_portal, interested FROM pipeline")}
+        "SELECT job_id, status, started_on_portal, interested, submitted_at, rejected_at FROM pipeline")}
     statuses = {k: v["status"] for k, v in pipe.items()}
 
     root = Path(__file__).resolve().parent.parent
@@ -704,6 +704,8 @@ def _board_rows(conn: sqlite3.Connection) -> list[dict]:
             "salary": (spec.get("salary") or "").strip(),
             "status": statuses.get(jr["id"], "sensed"),
             "interested": bool(pipe[jr["id"]]["interested"]) if jr["id"] in pipe else False,
+            "submitted_at": (pipe[jr["id"]]["submitted_at"] if jr["id"] in pipe else "") or "",
+            "rejected_at": (pipe[jr["id"]]["rejected_at"] if jr["id"] in pipe else "") or "",
             "created_at": jr["created_at"],
             "started_on_portal": (pipe[jr["id"]]["started_on_portal"]
                                   if jr["id"] in pipe else "") or "",
@@ -907,8 +909,8 @@ def _plain_overview(conn: sqlite3.Connection, rows: list[dict]) -> str:
     type_stats: dict[str, list[int | None]] = {}
     for r in sorted(sent, key=lambda x: events.get(x["id"], {}).get("applied", ""), reverse=True):
         ev = events.get(r["id"], {})
-        start = ev.get("applied", "")[:10]
-        end = ev.get("rejected", "")[:10]
+        start = (r.get("submitted_at") or ev.get("applied", ""))[:10]
+        end = (r.get("rejected_at") or ev.get("rejected", ""))[:10]
         days = ""
         if start and end:
             try:
@@ -1151,6 +1153,9 @@ def render_track(conn: sqlite3.Connection, job_id: str) -> bytes:
     if row is None:
         return _page("Not found", '<p>No such job.</p><a href="/">← Board</a>')
     items = tracking.get(conn, job_id)
+    timeline = conn.execute("SELECT submitted_at,rejected_at FROM pipeline WHERE job_id=?", (job_id,)).fetchone()
+    submitted_at = html.escape((timeline["submitted_at"] if timeline else "") or "", quote=True)
+    rejected_at = html.escape((timeline["rejected_at"] if timeline else "") or "", quote=True)
     meta = _job_meta(row["source"] or "")
     reference = re.search(r"^Position number:\s*(.+)$", row["raw_text"] or "", re.M)
     ref = f' · Position number: <b>{html.escape(reference.group(1))}</b>' if reference else ""
@@ -1184,6 +1189,12 @@ Submit and receiving the confirmation separately.</p>
 <table><thead><tr><th>Item</th><th>Needed?</th><th>Complete?</th><th>Details / file used</th></tr></thead>
 <tbody>{"".join(rows)}</tbody></table>
 <p><button class="btn" type="submit">Save checklist</button></p></form></div>
+<div class="card"><h2>实际投递与结果日期</h2>
+<p>旧记录如有确认邮件或拒信，请按邮件日期补录；不确定就留空。填日期不会代替申请状态或确认邮件。</p>
+<form method="post" action="/timeline/save"><input type="hidden" name="job_id" value="{html.escape(job_id, quote=True)}">
+<div class="fields"><label>确认投递日期<input type="date" name="submitted_at" value="{submitted_at}"></label>
+<label>收到拒信日期<input type="date" name="rejected_at" value="{rejected_at}"></label></div>
+<p><button class="btn secondary" type="submit">保存实际日期</button></p></form></div>
 <p class="sub">Check the position number on the official page before uploading. Answer personal declarations in the employer's form yourself.</p>'''
     return _page(row["title"] or "Job checklist", body)
 
@@ -1661,6 +1672,24 @@ class Handler(BaseHTTPRequestHandler):
                     self._redirect(f"/track/{urllib.parse.quote(job_id)}")
                 else:
                     self._send(b"Not found", 404)
+            elif self.path == "/timeline/save":
+                job_id = (fields.get("job_id") or [""])[0]
+                submitted_raw = (fields.get("submitted_at") or [""])[0].strip()
+                rejected_raw = (fields.get("rejected_at") or [""])[0].strip()
+                submitted = jobspec.parse_closing_date(submitted_raw) if submitted_raw else None
+                rejected = jobspec.parse_closing_date(rejected_raw) if rejected_raw else None
+                if not conn.execute("SELECT 1 FROM pipeline WHERE job_id=?", (job_id,)).fetchone():
+                    self._send(b"Not found", 404)
+                elif (submitted_raw and not submitted) or (rejected_raw and not rejected):
+                    self._send(_page("日期无效", '<p>请检查日期格式。</p><a href="/">返回看板</a>'), 400)
+                elif submitted and rejected and rejected < submitted:
+                    self._send(_page("日期顺序错误", '<p>拒信日期不能早于投递日期。</p><a href="/">返回看板</a>'), 400)
+                else:
+                    conn.execute("UPDATE pipeline SET submitted_at=?,rejected_at=? WHERE job_id=?",
+                                 (submitted.isoformat() if submitted else None,
+                                  rejected.isoformat() if rejected else None, job_id))
+                    conn.commit()
+                    self._redirect(f"/track/{urllib.parse.quote(job_id)}")
             elif self.path == "/fetch":
                 self._handle_fetch(fields)
             elif self.path == "/portal":

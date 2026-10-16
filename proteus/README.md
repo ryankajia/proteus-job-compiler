@@ -73,8 +73,16 @@ Nothing is auto-submitted, ever.
 
 ## MiniMax and the plain-language dashboard
 
-Start the local board with `MINIMAX_API_KEY` set in the terminal environment;
-do not paste the key into the dashboard or commit it to a file. The default
+For a double-click launch, create the ignored local file
+`my-materials/config/minimax.env` at the project root with one line:
+
+```text
+MINIMAX_API_KEY=your-key-here
+```
+
+Keep the file private (`chmod 600 my-materials/config/minimax.env`). You can
+instead set `MINIMAX_API_KEY` in the terminal environment; it takes priority
+over the file. Do not paste the key into the dashboard or commit it. The default
 writing model is `MiniMax-M2.7` (override with `MINIMAX_MODEL`). The search
 uses MiniMax-M3 and its server-side `web_search` tool. Both API operations can
 consume your MiniMax allowance. Without the key, all existing local tracking
@@ -89,6 +97,13 @@ Search does not scrape or import jobs automatically. Search results are saved
 only under the ignored `out/` directory. An AI selection draft is written as
 `selection_criteria_AI_DRAFT.md` inside the existing ignored application
 package and never overwrites a final file.
+
+The floating **English / 中文** button switches the dashboard and common workflow
+controls. The choice is kept in this browser's local storage. Employer ads,
+selection-criteria headings and generated application documents retain their
+source language; the interface switch never rewrites them. Daily follow-up
+reminders configured in the Codex app are separate from this local web server:
+the server itself does not run a background scheduler or send notifications.
 
 ## Discretion
 
