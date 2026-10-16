@@ -76,18 +76,46 @@ _PAGE_FURNITURE = re.compile(
     r")$", re.I)
 
 
+# A running header or footer often ends in its own page number
+# ("... Branch | Agency  5"), so no two copies are identical and the
+# "repeats on every page" rule never fires. Left in, one of them lands after a
+# blank line in the middle of a criteria list, which the criteria parser reads
+# as "the list is over" — a 9-criterion PD came out as 2.
+_MIN_HEADER_LEN = 30
+
+
+def _furniture_key(line: str) -> str:
+    """The line as it should be counted: whitespace-normalised, lower-cased,
+    and with a trailing page number removed.
+
+    Deleting content by mistake is worse than missing a footer, so a trailing
+    number is only treated as a page number when it is set off by a layout gap
+    (two or more spaces, as in "... Agency  5") and the line is long. Both
+    conditions matter: an inline "... unique to page 1" is body text, and short
+    rows such as "Level 1" / "Level 2" / "Level 3" are content — none of them
+    may be collapsed into one repeated line and swept away.
+    """
+    squashed = " ".join(line.split()).lower()
+    m = re.search(r"\s{2,}\d{1,3}$", line.rstrip())
+    if m:
+        bare = " ".join(line.rstrip()[:m.start()].split()).lower()
+        if len(bare) >= _MIN_HEADER_LEN:
+            return bare
+    return squashed
+
+
 def _strip_page_furniture(lines: list[str]) -> list[str]:
     """Drop page numbers and any line repeating on 3+ pages (running header
     or footer). Content lines legitimately repeat at most once or twice."""
     counts: dict[str, int] = {}
     for ln in lines:
-        k = " ".join(ln.split()).lower()
+        k = _furniture_key(ln)
         if k:
             counts[k] = counts.get(k, 0) + 1
     kept = []
     for ln in lines:
-        k = " ".join(ln.split()).lower()
-        if k and (_PAGE_FURNITURE.match(k) or counts[k] >= 3):
+        k = _furniture_key(ln)
+        if k and (_PAGE_FURNITURE.match(" ".join(ln.split()).lower()) or counts[k] >= 3):
             continue
         kept.append(ln)
     return kept

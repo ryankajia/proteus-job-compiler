@@ -65,6 +65,7 @@ seed_identity.json  →  SQLite  →  compile  →  out/apply/<slug>/
 | `materials.py` | Syncs a master CV `.docx` into the profile. Stdlib docx reader. |
 | `webapp.py` | The whole UI: a local dashboard on `:8765`. Stdlib `http.server`, no framework. Add jobs by URL, paste, or **drag-and-drop**. |
 | `llm.py` | Optional Claude API path. Dormant without `anthropic` + `ANTHROPIC_API_KEY`. The system is fully functional without it. |
+| `minimax_ai.py` | Optional MiniMax assistant: on-demand web search and evidence-bounded selection criteria draft. Requires `MINIMAX_API_KEY`; the key stays in the environment. Search results are review leads, not imported or verified jobs. |
 
 ### Scripts — `proteus/scripts/`
 
@@ -104,6 +105,21 @@ clauses, criteria wrapped across lines, and rejects decoy sentences like
    capability. Before this, a criterion about equal opportunity and fire-warden
    duties attracted *web development*. Saying "nothing here" is more useful than
    a fabricated fit.
+
+**Two kinds of reply (`response_style()`).** "Addressing the selection criteria"
+names two different documents. An *itemised* statement has a heading per criterion
+and is scored one criterion at a time; a *narrative* supporting statement / pitch
+(often page-limited) is read whole and then checked for coverage, so one strong
+example should answer several criteria. Advice for one is wrong for the other, so
+the generator branches. The style comes from the PD's own instructions — a "pitch"
+or a page-limited "supporting statement" — never from the employer's name, and the
+PD frequently says nothing at all (the wording lives on the advert page), so
+itemised is the default and narrative needs an explicit signal. The detected
+phrase is quoted in the output so a wrong call is visible, and a line
+`Response style: narrative|itemised` in the saved job text overrides it. The
+narrative worksheet is a coverage map, a greedy choice of at most four examples
+that between them cover the criteria, a word budget, and a tick-box checklist the
+board reads as progress.
 
 **Answer reuse (`reuse.py`).** Australian criteria repeat across roles. The
 module scans finalised criteria files from past applications, strips scaffolding,
@@ -167,7 +183,7 @@ pushing.
 │   ├── proteus/             modules (see §3)
 │   ├── scripts/             orchestration entry points
 │   ├── data/                *.template.json, sample_jobs/
-│   ├── tests/               206 tests, pure stdlib
+│   ├── tests/               270 tests, pure stdlib
 │   ├── GUIDE.md             three-step quick start
 └── my-materials/            private data, git-ignored (see its own README)
 ```
@@ -195,7 +211,7 @@ cp data/seed_identity.template.json data/seed_identity.json
 python3 scripts/seed.py              # load + calibrate
 python3 -m proteus.webapp            # dashboard at localhost:8765
 python3 scripts/apply.py [slug]      # rebuild packages from the terminal
-python3 -m pytest                    # 206 tests
+python3 -m pytest                    # 270 tests
 ```
 
 Python 3.11+, standard library only. `anthropic` is optional and unused by

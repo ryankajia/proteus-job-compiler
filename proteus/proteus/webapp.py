@@ -28,7 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import (applog, calibration, compiler, db, fit, gate, identity,
-               jobdoc, joburl, jobspec, materials, reuse, revisions)
+               jobdoc, joburl, jobspec, materials, minimax_ai, reuse, revisions, tracking)
 
 PORT = 8765
 # Shown in the browser tab / window title — nothing job-hunting-specific.
@@ -105,7 +105,7 @@ def _page(title: str, body: str) -> bytes:
 <title>{html.escape(title)} · {APP_NAME}</title>
 <link rel="stylesheet" href="/static/app.css?v={css_v}">
 <script src="/static/app.js?v={js_v}" defer></script>
-</head><body>{body}</body></html>""".encode("utf-8")
+</head><body><button id="language-switch" class="language-switch" type="button" aria-label="Switch language">English</button>{body}</body></html>""".encode("utf-8")
 
 
 _VISA_BLOCKERS = ("citizenship", "clearance", "pr/citizenship")
@@ -147,12 +147,15 @@ def _upsert_pipeline(conn: sqlite3.Connection, job_id: str, status=None,
     status = status or (row["status"] if row else "sensed")
     fit_score = fit_score if fit_score is not None else (row["fit_score"] if row else None)
     stretch_score = stretch_score if stretch_score is not None else (row["stretch_score"] if row else None)
-    conn.execute(
-        "INSERT OR REPLACE INTO pipeline(job_id, status, positioning_used, fit_score, stretch_score, deadline, updated_at) "
-        "VALUES(?,?,?,?,?,?,?)",
-        (job_id, status, row["positioning_used"] if row else None, fit_score, stretch_score,
-         row["deadline"] if row else None, now),
-    )
+    if row:
+        conn.execute("UPDATE pipeline SET status=?,fit_score=?,stretch_score=?,updated_at=? WHERE job_id=?",
+                     (status, fit_score, stretch_score, now, job_id))
+    else:
+        conn.execute("INSERT INTO pipeline(job_id,status,fit_score,stretch_score,updated_at) VALUES(?,?,?,?,?)",
+                     (job_id, status, fit_score, stretch_score, now))
+    if row and status != row["status"]:
+        conn.execute("INSERT INTO events(job_id,event,created_at) VALUES(?,?,?)",
+                     (job_id, status, now))
     conn.commit()
 
 
@@ -374,6 +377,12 @@ def _criteria_progress(slug: str) -> tuple[int, int]:
             text = f.read_text(encoding="utf-8")
         except OSError:
             continue
+        # A continuous pitch has no "## Criterion N" sections. Its progress is
+        # the coverage checklist: one box per criterion, ticked by hand once the
+        # finished draft is read back and genuinely covers it.
+        boxes = re.findall(r"^- \[( |x|X)\] \*\*C\d+\*\*", text, re.M)
+        if boxes:
+            return (sum(1 for b in boxes if b.lower() == "x"), len(boxes))
         total = len(_CRIT_HEAD.findall(text))
         if not total:
             continue
@@ -475,23 +484,20 @@ def _apply_link(p: dict) -> str:
 HOWTO = """
 <div class="card">
 <ol>
-<li><b>Add</b> — the system<b>does not</b> does not search or browse job boards — that is deliberate. You find the vacancy yourself on
-SEEK/Indeed , or ask Claude to help you search. Then press “+ Add entry” at the top right and pick one of three ways in:
-<b>paste a link and press Fetch</b> (one click reads only the page you gave it, and shows you the result),
-<b>copy and paste the whole thing</b>, <b>Upload a PDF or Word document</b> (many vacancies only publish a PDF — just upload it, no retyping.)
-University, government and ATS pages usually read fine. SEEK and Indeed often block; LinkedIn is not attempted, by their terms —
-if blocked, paste or upload instead.</li>
-<li><b>Build the package</b> — After submitting, the system<b>auto</b>It builds the whole set: tailored résumé, cover letter, selection-criteria response where required,
-a pre-submission check and a gap report. Everything already built is under “My packages” above.</li>
-<li><b>Submit</b> — There is no one-click apply. Open the package, press ✏️ Edit to change anything, save,
-then Print / Save as PDF (or Download Word), and use “go to the employer's page” to apply on their site.
-upload the PDF — and you press submit yourself. The system never submits anything for you.</li>
+<li><b>Find a current vacancy.</b> This board does not search the web or refresh saved ads automatically.
+Check the employer's page for the live closing date before spending time on documents.</li>
+<li><b>Track it.</b> Press “+ Track a job” and enter its title, official link, closing date and required
+documents. The entry appears on this board immediately, without generating a new CV. Click its
+checklist count to record which files you uploaded.</li>
+<li><b>Prepare and submit.</b> Use an already-reviewed CV. If you need generated drafts, “Build from ad”
+accepts the ad text or position description. Apply on the employer's own site. The checklist records
+pressing Submit and receiving the confirmation email as separate steps.</li>
 </ol>
-<p class="sub">When you have submitted, come back and set the status to Submitted.<br>
-💡 “My packages” above and the table below are<b>the same entries</b> two views of the same thing: files above, fit and progress below.<br>
-💡 Edited the master CV (.docx) in my-materials/cv? Press “🔄 Sync CV” at the top right —
-the system re-reads it, updates the data and rebuilds every auto draft (_FINAL files are left alone).<br>
-💡 If an Australian vacancy asks for a selection-criteria statement, the package includes a draft response automatically.</p>
+<p class="sub">Expired dates are marked closed when the board opens. A missing closing date means
+“unknown”, not “still open”; check it on the employer's page.<br>
+“Sync master CV” reads the file containing <b>master</b> in its name in my-materials/cv and rebuilds
+auto drafts. Editing a general or role-specific CV does not change that master file. Check which
+file the sync will read before using the button. Hand-edited _FINAL files are preserved.</p>
 </div>
 """
 
@@ -511,11 +517,17 @@ def render_package(name: str) -> bytes:
     dl = f'<p class="sub">⏰ Closes: {html.escape(meta["deadline"])}</p>' if meta["deadline"] else ""
     apply_btn = (f'<a class="btn" href="{html.escape(meta["url"])}" target="_blank">Go to the employer&rsquo;s page &uarr;</a>'
                  if meta["url"] else "")
+    ai_action = ""
+    if (d / "selection_criteria.md").exists() or (d / "selection_criteria_draft.md").exists():
+        ai_action = (f'<form method="post" action="/ai/selection">'
+                     f'<input type="hidden" name="name" value="{html.escape(name, quote=True)}">'
+                     '<button class="btn secondary" type="submit">用 MiniMax 起草 selection criteria</button></form>'
+                     '<p class="sub">点击后会把本岗位的证据工作表发送给 MiniMax。AI 稿单独保存，不覆盖你修改过的文件；提交前逐条核对事实和 PD 标题。</p>')
     body = f"""
 <div class="topbar"><h1>{html.escape(name)}</h1><a class="btn secondary" href="/">← Back to the board</a></div>
 {dl}
 <div class="card"><h3>Documents (in reading order)</h3><ul style="list-style:none;padding-left:0">{items}</ul>
-<p>{apply_btn}</p></div>
+<p>{apply_btn}</p>{ai_action}</div>
 """
     return _page(name, body)
 
@@ -655,7 +667,7 @@ def _board_rows(conn: sqlite3.Connection) -> list[dict]:
     row — with no shared key between the two views.
     """
     pipe = {r["job_id"]: r for r in conn.execute(
-        "SELECT job_id, status, started_on_portal FROM pipeline")}
+        "SELECT job_id, status, started_on_portal, interested FROM pipeline")}
     statuses = {k: v["status"] for k, v in pipe.items()}
 
     root = Path(__file__).resolve().parent.parent
@@ -687,9 +699,12 @@ def _board_rows(conn: sqlite3.Connection) -> list[dict]:
             "id": jr["id"],
             "slug": slug,
             "title": (spec.get("title") or "").strip(),
+            "seniority": (spec.get("seniority") or "").strip(),
             "org": (spec.get("org") or "").strip(),
             "salary": (spec.get("salary") or "").strip(),
             "status": statuses.get(jr["id"], "sensed"),
+            "interested": bool(pipe[jr["id"]]["interested"]) if jr["id"] in pipe else False,
+            "created_at": jr["created_at"],
             "started_on_portal": (pipe[jr["id"]]["started_on_portal"]
                                   if jr["id"] in pipe else "") or "",
             "fit_score": scored["fit_score"],
@@ -704,6 +719,7 @@ def _board_rows(conn: sqlite3.Connection) -> list[dict]:
             "criteria_done": answered,
             "criteria_total": total,
             "gate_flags": flags,
+            "checklist": tracking.progress(conn, jr["id"]),
         })
     for r in rows:
         r["group"] = _group_of(r)
@@ -782,13 +798,23 @@ def _board_row_html(row: dict) -> str:
     word, band = _fit_band(row["fit_score"])
     if not row["visa_feasible"]:
         word, band = "Visa-restricted", "dead"
-    done, total = row["criteria_done"], row["criteria_total"]
-    if total:
-        pct = int(round(done * 100 / total))
-        docs = (f'<span class="bar"><i style="width:{pct}%"></i></span>{done}/{total}')
+    if "checklist" in row:
+        done, total = row["checklist"]
+        pct = int(round(done * 100 / total)) if total else 0
+        docs = (f'<a href="/track/{html.escape(row["id"], quote=True)}" title="Application checklist">'
+                f'<span class="bar"><i style="width:{pct}%"></i></span>{done}/{total} ✓</a>')
     else:
-        docs = '<span class="sub">—</span>'
-    open_href = f'/pkg/{urllib.parse.quote(row["slug"])}' if row["has_package"] else f'/job/{row["id"]}'
+        # The standalone row renderer also accepts pre-tracker rows used by
+        # older callers; their criteria progress remains visible.
+        done, total = row["criteria_done"], row["criteria_total"]
+        if total:
+            pct = int(round(done * 100 / total))
+            docs = f'<span class="bar"><i style="width:{pct}%"></i></span>{done}/{total}'
+        else:
+            docs = '<span class="sub">—</span>'
+    open_href = (f'/pkg/{urllib.parse.quote(row["slug"])}' if row["has_package"]
+                 else f'/track/{urllib.parse.quote(row["id"])}' if "checklist" in row
+                 else f'/job/{urllib.parse.quote(row["id"])}')
     dead = " dead" if row["closed"] else ""
     # Say plainly that this one was written and never sent. Hiding it would
     # lose the only lesson it still has to give.
@@ -804,9 +830,13 @@ def _board_row_html(row: dict) -> str:
             for f in flags)
         detail = html.escape(gate.summary(flags))
         gate_html = f'<div class="gate">{chips}<div class="gate-why">{detail}</div></div>' 
+    interest = (f'<form method="post" action="/interest" class="interest-form">'
+                f'<input type="hidden" name="job_id" value="{html.escape(row["id"], quote=True)}">'
+                f'<button type="submit" title="标记我想做的岗位">'
+                f'{"★ 想做" if row.get("interested") else "☆ 想做"}</button></form>')
     return (f'<div class="row{dead}">'
             f'<div><p class="title"><a href="{open_href}">{html.escape(title)}</a></p>'
-            f'<div class="sub">{sub}</div>{slug_line}{wasted}{gate_html}</div>'
+            f'<div class="sub">{sub}</div>{slug_line}{wasted}{gate_html}{interest}</div>'
             f'{_deadline_cell(row)}'
             f'<span class="pill {band}">{word}</span>'
             f'<div class="docs">{docs}</div>'
@@ -840,6 +870,87 @@ def _status_strip(rows: list[dict]) -> str:
     return ('<dl class="strip">' + "".join(
         f'<div class="stat {c}"><dt>{t}</dt><dd>{n}</dd></div>' for t, n, c in cells)
         + "</dl>")
+
+
+def _plain_overview(conn: sqlite3.Connection, rows: list[dict]) -> str:
+    """A concise answer to today's vacancies and the actual application record."""
+    today = _dt.date.today()
+    submitted = {"applied", "interviewing", "offer", "rejected"}
+    fresh = [r for r in rows if (r.get("created_at") or "")[:10] == today.isoformat()
+             and not r["closed"] and r["status"] not in submitted]
+    suitable = [r for r in rows if not r["closed"] and r["status"] not in submitted
+                and (r["fit_score"] or 0) >= 0.6 and r["visa_feasible"]
+                and r.get("url") and r.get("closes_on")]
+    liked = [r for r in rows if r.get("interested") and not r["closed"]
+             and r["status"] not in submitted]
+    sent = [r for r in rows if r["status"] in submitted]
+    rejected = [r for r in rows if r["status"] == "rejected"]
+    events: dict[str, dict[str, str]] = {}
+    if conn is not None:
+        for e in conn.execute("SELECT job_id,event,created_at FROM events "
+                              "WHERE event IN ('applied','rejected') ORDER BY created_at"):
+            events.setdefault(e["job_id"], {}).setdefault(e["event"], e["created_at"])
+
+    def job_item(r: dict) -> str:
+        href = f'/pkg/{urllib.parse.quote(r["slug"])}' if r["has_package"] else f'/track/{urllib.parse.quote(r["id"])}'
+        return (f'<li><a href="{href}">{html.escape(r["title"] or "未命名岗位")}</a>'
+                f' <span>{html.escape(r["org"] or "机构待核对")} · '
+                f'{html.escape(_days_word(r))}</span></li>')
+
+    def list_or_empty(items: list[dict], empty: str, limit: int = 6) -> str:
+        return '<ul class="overview-list">' + "".join(job_item(r) for r in items[:limit]) + '</ul>' if items else f'<p class="overview-empty">{empty}</p>'
+
+    suitable.sort(key=lambda r: (not r.get("interested"), r["closes_on"] or _dt.date.max,
+                                 -r["fit_score"]))
+    liked.sort(key=lambda r: r["closes_on"] or _dt.date.max)
+    history = []
+    type_stats: dict[str, list[int | None]] = {}
+    for r in sorted(sent, key=lambda x: events.get(x["id"], {}).get("applied", ""), reverse=True):
+        ev = events.get(r["id"], {})
+        start = ev.get("applied", "")[:10]
+        end = ev.get("rejected", "")[:10]
+        days = ""
+        if start and end:
+            try:
+                elapsed = (_dt.date.fromisoformat(end) - _dt.date.fromisoformat(start)).days
+                days = f" · {elapsed} 天后收到拒信"
+            except ValueError:
+                pass
+        if r["status"] == "rejected":
+            title_low = (r["title"] or "").lower()
+            category = ("研究类" if any(t in title_low for t in ("research", "postdoc", "fellow", "scientist"))
+                        else "数据/技术类" if any(t in title_low for t in ("data", "analyst", "software", "developer", "engineer"))
+                        else "行政/项目类" if any(t in title_low for t in ("admin", "officer", "coordinator", "project", "program"))
+                        else "其他/待归类")
+            type_stats.setdefault(category, []).append(elapsed if days else None)
+        state = "已拒绝" if r["status"] == "rejected" else "面试中" if r["status"] == "interviewing" else "录用" if r["status"] == "offer" else "已投递"
+        history.append(f'<li><b>{html.escape(r["title"] or "未命名岗位")}</b> · '
+                       f'{html.escape(r["org"] or "机构待核对")} · {state}'
+                       f' · 投递 {html.escape(start or "日期待补")}{days}</li>')
+    type_lines = "".join(
+        f'<li>{html.escape(category)}：{len(values)} 次拒绝'
+        + (f'；已知间隔 {", ".join(str(v) for v in values if v is not None)} 天' if any(v is not None for v in values) else '；缺投递或拒绝日期')
+        + '</li>' for category, values in sorted(type_stats.items()))
+    return f'''<section class="overview">
+      <h2>今天先看这里 <small>{today.isoformat()}</small></h2>
+      <div class="overview-numbers">
+        <div><strong>{len(fresh)}</strong><span>今天新增记录</span></div>
+        <div><strong>{len(suitable)}</strong><span>值得核对</span></div>
+        <div><strong>{len(liked)}</strong><span>我想做</span></div>
+        <div><strong>{len(sent)}</strong><span>已投递</span></div>
+        <div><strong>{len(rejected)}</strong><span>已拒绝</span></div>
+      </div>
+      <p class="overview-caveat">“今天新增记录”按进入本系统的日期计算。“值得核对”仅统计有链接、明确截止日期、初筛匹配且未过期的岗位，仍须打开雇主原文核对。已投递请以确认邮件为准。</p>
+      <div class="overview-grid">
+        <div class="overview-panel"><h3>优先看的岗位</h3>{list_or_empty(suitable, "目前没有已记录且符合初筛的开放岗位。")}</div>
+        <div class="overview-panel"><h3>我想做的岗位</h3>{list_or_empty(liked, "点岗位旁的 ☆ 想做，收藏你真正感兴趣的工作。")}</div>
+        <div class="overview-panel wide"><h3>投递记录与结果</h3>
+          {('<ul class="overview-list history">' + ''.join(history) + '</ul>') if history else '<p class="overview-empty">还没有确认投递记录。</p>'}
+          {('<h3>被拒岗位类型</h3><ul class="overview-list">' + type_lines + '</ul>') if type_lines else ''}
+          <p class="overview-caveat">拒绝所用天数仅在投递和拒绝事件都有日期时显示；岗位类型样本很少时，不应只凭拒绝次数排除整个类别。</p>
+        </div>
+      </div>
+    </section>'''
 
 
 def _alerts(rows: list[dict]) -> str:
@@ -889,16 +1000,22 @@ def _alerts(rows: list[dict]) -> str:
 
 def render_board(conn: sqlite3.Connection) -> bytes:
     rows = _board_rows(conn)
-    body = [f'<div class="topbar"><h1>{APP_NAME}</h1>'
-            '<span><a class="btn secondary" href="/log">Activity log</a> '
+    master = materials._find_master_cv()
+    sync_title = (f"Reads {master.name} and rebuilds auto drafts" if master else
+                  "No master CV found in my-materials/cv")
+    body = [f'<div class="topbar"><h1>我的求职看板</h1>'
+            '<span><a class="btn secondary" href="/log">详细记录</a> '
             '<form class="inline" method="post" action="/sync">'
-            '<button class="btn secondary" type="submit">Sync CV</button></form> '
+            f'<button class="btn secondary" type="submit" title="{html.escape(sync_title, quote=True)}">Sync master CV</button></form> '
             '<a class="btn secondary" href="/help" title="How to use this">?</a> '
-            '<a class="btn" href="/new">+ Add a job</a></span></div>']
+            '<a class="btn secondary" href="/new">根据招聘信息准备材料</a> '
+            '<a class="btn secondary" href="/discover">AI 找岗位</a> '
+            '<a class="btn" href="/quick">+ 记录岗位</a></span></div>']
+
+    body.append(_plain_overview(conn, rows))
 
     if not rows:
-        body.append('<div class="card empty">Nothing here yet. '
-                    'Use &ldquo;+ Add a job&rdquo; at the top right to start.</div>')
+        body.append('<div class="card empty">还没有岗位。点击右上角“+ 记录岗位”开始。</div>')
         return _page("Overview", "".join(body))
 
     body.append(_status_strip(rows))
@@ -936,6 +1053,20 @@ def render_log(conn: sqlite3.Connection) -> bytes:
     return _page("Activity log", '<div class="topbar"><h1>🗓 Activity log</h1>'
                  '<a class="btn secondary" href="/">← Back to the board</a></div>'
                  '<div class="card">' + _md_to_html(applog.build(conn)) + '</div>')
+
+
+def render_discover(message: str = "") -> bytes:
+    result_file = OUT / "latest_job_search.md"
+    result = result_file.read_text(encoding="utf-8") if result_file.exists() else ""
+    notice = f'<p class="err">{html.escape(message)}</p>' if message else ""
+    content = _md_to_html(result) if result else '<p>还没有搜索结果。设置 MiniMax API key 后点击“搜索现在的岗位”。</p>'
+    body = (f'<div class="topbar"><h1>找适合我的岗位</h1><a class="btn secondary" href="/">← 返回看板</a></div>'
+            f'{notice}<div class="card"><p>搜索会调用 MiniMax 的实时网页搜索。结果是线索，请打开雇主原文核对岗位、资格与截止日期；确认后点“+ 记录岗位”加入看板。</p>'
+            '<form method="post" action="/discover"><label>这次想找什么岗位'
+            '<input name="query" value="Australia research assistant data analyst health administration" maxlength="1000"></label>'
+            '<p><button class="btn" type="submit">搜索现在的岗位</button></p></form></div>'
+            f'<div class="card doc"><h2>最近一次搜索</h2>{content}</div>')
+    return _page("找岗位", body)
 
 
 def render_new_form(error: str | None = None, values: dict | None = None,
@@ -993,6 +1124,68 @@ The link is kept either way, as the “go to the employer's page” button.</p>
 </div>
 """
     return _page("Add entry", body)
+
+
+def render_quick_form(error: str = "") -> bytes:
+    err = f'<p class="err">{html.escape(error)}</p>' if error else ""
+    body = f'''<div class="topbar"><h1>Track a job</h1><a class="btn secondary" href="/">← Board</a></div>
+<p class="sub">Save a vacancy now. You can prepare the documents later.</p>{err}
+<div class="card"><form method="post" action="/quick">
+<div class="fields"><label>Job title<input type="text" name="title" required></label>
+<label>Employer<input type="text" name="org"></label></div>
+<div class="fields"><label>Official job link<input type="url" name="url" required></label>
+<label>Closing date<input type="date" name="closes_at"></label>
+<label>Position / vacancy number<input type="text" name="reference"></label></div>
+<p>Required documents (change these later on the checklist):</p>
+<p><label><input type="checkbox" name="need_cover"> Cover letter</label> &nbsp;
+<label><input type="checkbox" name="need_statement"> Selection statement / pitch</label> &nbsp;
+<label><input type="checkbox" name="need_referees"> Referees</label></p>
+<label>Other requirements or notes<textarea name="notes" style="min-height:85px"></textarea></label>
+<p><button class="btn" type="submit">Save to board</button></p>
+</form></div>'''
+    return _page("Track a job", body)
+
+
+def render_track(conn: sqlite3.Connection, job_id: str) -> bytes:
+    row = conn.execute("SELECT * FROM jobspecs WHERE id=?", (job_id,)).fetchone()
+    if row is None:
+        return _page("Not found", '<p>No such job.</p><a href="/">← Board</a>')
+    items = tracking.get(conn, job_id)
+    meta = _job_meta(row["source"] or "")
+    reference = re.search(r"^Position number:\s*(.+)$", row["raw_text"] or "", re.M)
+    ref = f' · Position number: <b>{html.escape(reference.group(1))}</b>' if reference else ""
+    url = meta["url"]
+    link = (f'<a class="btn secondary" href="{html.escape(url, quote=True)}" target="_blank">Official job page ↗</a>'
+            if url else "")
+    pkg = PKG / (row["source"] or "")
+    package = (f'<a class="btn secondary" href="/pkg/{urllib.parse.quote(row["source"])}">Prepared documents</a>'
+               if pkg.is_dir() else "")
+    rows = []
+    for key, label in tracking.ITEMS:
+        v = items[key]
+        locked = key in ("portal_submitted", "confirmation_received")
+        req = ('<span class="sub">Always required</span>' if locked else
+               f'<label><input type="checkbox" name="required_{key}" value="1"'
+               f'{" checked" if v["required"] else ""}> Required</label>')
+        done = (f'<label><input type="checkbox" name="done_{key}" value="1"'
+                f'{" checked" if v["done"] else ""}> Done</label>')
+        detail = f'<input type="text" name="detail_{key}" value="{html.escape(v["detail"], quote=True)}" placeholder="File used, requirement, or confirmation reference" style="width:100%">'
+        rows.append(f'<tr><td><b>{html.escape(label)}</b></td><td>{req}</td><td>{done}</td><td>{detail}</td></tr>')
+    closing = html.escape(row["closes_at"] or row["deadline"] or "Date unknown")
+    body = f'''<div class="topbar"><h1>{html.escape(row["title"] or "Job checklist")}</h1>
+<a class="btn secondary" href="/">← Board</a></div>
+<p class="sub">{html.escape(row["org"] or "")} · Closes: {closing}{ref}</p>
+<p>{link} {package}</p>
+<div class="card"><h2>Application checklist</h2>
+<p>Check “Required” for what this vacancy asks for. Check “Done” only after completing that step.
+For documents, “Done” means uploaded on the employer's site. The final two rows record pressing
+Submit and receiving the confirmation separately.</p>
+<form method="post" action="/track/save"><input type="hidden" name="job_id" value="{html.escape(job_id, quote=True)}">
+<table><thead><tr><th>Item</th><th>Needed?</th><th>Complete?</th><th>Details / file used</th></tr></thead>
+<tbody>{"".join(rows)}</tbody></table>
+<p><button class="btn" type="submit">Save checklist</button></p></form></div>
+<p class="sub">Check the position number on the official page before uploading. Answer personal declarations in the employer's form yourself.</p>'''
+    return _page(row["title"] or "Job checklist", body)
 
 
 def render_ingest_error(msgs: list[str]) -> bytes:
@@ -1261,15 +1454,22 @@ class Handler(BaseHTTPRequestHandler):
             _ensure_identity(conn)
             if path == "/" or path == "":
                 self._send(render_board(conn))
+            elif path == "/quick":
+                self._send(render_quick_form())
             elif path == "/new":
                 self._send(render_new_form())
             elif path == "/help":
                 self._send(render_help())
             elif path == "/log":
                 self._send(render_log(conn))
+            elif path == "/discover":
+                self._send(render_discover())
             elif path.startswith("/job/"):
                 job_id = path[len("/job/"):]
                 self._send(render_result(conn, job_id))
+            elif path.startswith("/track/"):
+                job_id = path[len("/track/"):]
+                self._send(render_track(conn, job_id))
             elif path.startswith("/pkg/"):
                 parts = urllib.parse.unquote(path[len("/pkg/"):]).strip("/").split("/")
                 if len(parts) == 1:
@@ -1395,6 +1595,72 @@ class Handler(BaseHTTPRequestHandler):
             _ensure_identity(conn)
             if self.path == "/analyze":
                 self._handle_analyze(conn, fields, files)
+            elif self.path == "/discover":
+                query = (fields.get("query") or [""])[0].strip()
+                if not query:
+                    self._send(render_discover("请先填写想找的岗位。"))
+                else:
+                    try:
+                        result = minimax_ai.search_jobs(query)
+                    except RuntimeError as exc:
+                        self._send(render_discover(str(exc)))
+                    else:
+                        OUT.mkdir(parents=True, exist_ok=True)
+                        (OUT / "latest_job_search.md").write_text(
+                            f"# 搜索于 {_dt.datetime.now().isoformat(timespec='minutes')}\n\n" + result,
+                            encoding="utf-8")
+                        self._redirect("/discover")
+            elif self.path == "/quick":
+                title = (fields.get("title") or [""])[0].strip()
+                org = (fields.get("org") or [""])[0].strip()
+                url = (fields.get("url") or [""])[0].strip()
+                reference = (fields.get("reference") or [""])[0].strip()
+                closes_raw = (fields.get("closes_at") or [""])[0].strip()
+                closes = jobspec.parse_closing_date(closes_raw)
+                notes = (fields.get("notes") or [""])[0].strip()
+                if not title or not re.match(r"^https?://", url):
+                    self._send(render_quick_form("A job title and official http(s) link are required."))
+                elif closes_raw and not closes:
+                    self._send(render_quick_form("Check the closing date and try again."))
+                else:
+                    existing = conn.execute(
+                        "SELECT id FROM jobspecs WHERE apply_channel=? ORDER BY created_at LIMIT 1",
+                        (url,),
+                    ).fetchone()
+                    if existing:
+                        self._redirect(f"/track/{urllib.parse.quote(existing['id'])}")
+                        return
+                    slug = _unique_slug(_slug(title, org))
+                    raw = f"{title}\nOrganisation: {org}\nPosition number: {reference}\nJob link: {url}\n"
+                    if closes:
+                        raw += f"Closes: {closes.isoformat()}\n"
+                    if notes:
+                        raw += f"Notes: {notes}\n"
+                    (REAL_JOBS / f"{slug}.txt").write_text(raw, encoding="utf-8")
+                    spec = jobspec.parse(raw, source=slug)
+                    spec.update(title=title, org=org, deadline=closes.isoformat() if closes else "",
+                                closes_at=closes.isoformat() if closes else "", apply_channel=url,
+                                raw_text=raw)
+                    job_id = jobspec.save(conn, spec)
+                    _upsert_pipeline(conn, job_id, status="sensed")
+                    values = {key: {"required": key == "cv" or bool((fields.get("need_" + key) or [""])[0]),
+                                    "done": False, "detail": ""} for key in tracking.ITEM_KEYS}
+                    values["other"]["detail"] = notes
+                    values["other"]["required"] = bool(notes)
+                    tracking.save(conn, job_id, values)
+                    self._redirect(f"/track/{urllib.parse.quote(job_id)}")
+            elif self.path == "/track/save":
+                job_id = (fields.get("job_id") or [""])[0]
+                if conn.execute("SELECT 1 FROM jobspecs WHERE id=?", (job_id,)).fetchone():
+                    values = {key: {
+                        "required": bool((fields.get("required_" + key) or [""])[0]),
+                        "done": bool((fields.get("done_" + key) or [""])[0]),
+                        "detail": (fields.get("detail_" + key) or [""])[0],
+                    } for key in tracking.ITEM_KEYS}
+                    tracking.save(conn, job_id, values)
+                    self._redirect(f"/track/{urllib.parse.quote(job_id)}")
+                else:
+                    self._send(b"Not found", 404)
             elif self.path == "/fetch":
                 self._handle_fetch(fields)
             elif self.path == "/portal":
@@ -1424,6 +1690,33 @@ class Handler(BaseHTTPRequestHandler):
                 if job_id and status in STATUS_LABEL:
                     _upsert_pipeline(conn, job_id, status=status)
                 self._redirect(self.headers.get("Referer") or "/")
+            elif self.path == "/interest":
+                job_id = (fields.get("job_id") or [""])[0]
+                conn.execute("UPDATE pipeline SET interested=1-interested WHERE job_id=?", (job_id,))
+                conn.commit()
+                self._redirect("/")
+            elif self.path == "/ai/selection":
+                name = (fields.get("name") or [""])[0]
+                if not name or "/" in name or ".." in name or (PKG / name).parent != PKG:
+                    self._send(b"Not found", 404)
+                    return
+                source = _pkg_file(name, "selection_criteria.md") or _pkg_file(name, "selection_criteria_draft.md")
+                if source is None:
+                    self._send(b"Not found", 404)
+                    return
+                try:
+                    draft = minimax_ai.draft_selection(source.read_text(encoding="utf-8"))
+                except RuntimeError as exc:
+                    self._send(_page("MiniMax 暂不可用", f'<div class="card"><h2>没有生成 AI 草稿</h2><p>{html.escape(str(exc))}</p><a href="/pkg/{urllib.parse.quote(name)}">返回材料</a></div>'))
+                    return
+                target = source.parent / "selection_criteria_AI_DRAFT.md"
+                if target.exists():
+                    backup = source.parent / ".backups"
+                    backup.mkdir(exist_ok=True)
+                    stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+                    (backup / f"selection_criteria_AI_DRAFT.{stamp}.md").write_bytes(target.read_bytes())
+                target.write_text("# AI draft — review every claim before use\n\n" + draft, encoding="utf-8")
+                self._redirect(f"/pkg/{urllib.parse.quote(name)}/selection_criteria_AI_DRAFT.md")
             elif self.path == "/sync":
                 report = materials.sync(conn)
                 regen_output = ""

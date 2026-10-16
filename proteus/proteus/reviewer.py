@@ -79,9 +79,17 @@ def review(conn: sqlite3.Connection, spec: dict, resume_md: str,
 
     # 5. Selection criteria statement (APS / university pattern).
     if "selection criteria" in raw:
-        findings.append({"severity": "block", "check": "selection-criteria",
-                         "msg": "This employer requires a separate statement addressing the "
-                                "selection criteria — applications without one may not be considered."})
+        from . import selection          # local import: selection pulls in compiler
+        st = selection.response_style(spec.get("raw_text") or raw)
+        if st["style"] == "narrative":
+            what = (f"a {st['pages']}-page supporting statement / pitch" if st["pages"]
+                    else "a supporting statement / pitch")
+            msg = (f"This employer requires {what} that covers the selection criteria "
+                   "— applications without one may not be considered.")
+        else:
+            msg = ("This employer requires a separate statement addressing the "
+                   "selection criteria — applications without one may not be considered.")
+        findings.append({"severity": "block", "check": "selection-criteria", "msg": msg})
 
     # 6. Citizenship / clearance blockers.
     if not spec.get("visa_feasible", True) or spec.get("security_clearance"):

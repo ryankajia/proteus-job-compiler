@@ -197,3 +197,31 @@ details.deadline>summary::after{content:""}
 .gate{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .pill.chip{font-size:10.5px;cursor:help}
 .gate-why{flex-basis:100%;font-size:11.5px;color:var(--b-crit);margin-top:2px}
+
+/* Plain-language overview above the detailed board. */
+.overview{background:#fff;border:1px solid var(--b-line-soft);border-radius:14px;
+  padding:20px;margin:14px 0 18px;box-shadow:0 3px 14px rgba(0,0,0,.035)}
+.overview h2{margin:0 0 16px;font-size:22px}
+.overview h2 small{font-size:13px;font-weight:400;color:var(--b-ink-3);margin-left:10px}
+.overview-numbers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.overview-numbers div{background:#f5f8fb;border-radius:10px;padding:13px 14px;display:flex;flex-direction:column}
+.overview-numbers strong{font-size:29px;line-height:1.2;color:var(--b-accent)}
+.overview-numbers span{font-size:12px;color:var(--b-ink-2);margin-top:4px}
+.overview-caveat{font-size:12px;color:var(--b-ink-3);line-height:1.55;margin:12px 0 0}
+.overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
+.overview-panel{border:1px solid var(--b-line-soft);border-radius:10px;padding:15px}
+.overview-panel.wide{grid-column:1/-1}
+.overview-panel h3{font-size:16px;margin:0 0 10px}
+.overview-list{list-style:none;padding:0;margin:0}
+.overview-list li{padding:9px 0;border-top:1px solid var(--b-line-soft);line-height:1.4}
+.overview-list li:first-child{border-top:0}
+.overview-list span{display:block;color:var(--b-ink-2);font-size:12px;margin-top:3px}
+.overview-empty{color:var(--b-ink-3);font-size:13px}
+.interest-form{margin-top:5px}
+.interest-form button{border:0;background:transparent;color:#9a6500;cursor:pointer;padding:0;font-size:12px}
+@media(max-width:650px){.overview{padding:15px}.overview-numbers{grid-template-columns:repeat(3,1fr)}
+  .overview-grid{grid-template-columns:1fr}.overview-panel.wide{grid-column:auto}}
+.language-switch{position:fixed;right:12px;bottom:12px;z-index:50;background:#173d60;
+  color:white;border:0;border-radius:999px;padding:9px 15px;box-shadow:0 3px 12px #0003;
+  cursor:pointer;font:600 13px system-ui,sans-serif}
+@media print{.language-switch{display:none}}

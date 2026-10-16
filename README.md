@@ -104,7 +104,7 @@ paste, not a crawler. Every application is submitted by a human who has read it.
 │   │                        webapp
 │   ├── scripts/             apply.py, seed.py, ingest.py, outcome.py, discover.py
 │   ├── data/                seed_identity.template.json, sample_jobs/
-│   ├── tests/               206 tests — python3 -m pytest
+│   ├── tests/               270 tests — python3 -m pytest
 │   └── GUIDE.md             three-step quick start
 └── my-materials/            YOUR private data — git-ignored, never published
     ├── cv/  job-ads/  applications/  tracking/  reference/

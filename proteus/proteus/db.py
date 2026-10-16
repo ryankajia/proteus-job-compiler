@@ -10,7 +10,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 
 DEFAULT_DB = Path(__file__).resolve().parent.parent / "databases" / "proteus.db"
 
@@ -97,6 +97,17 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             note TEXT,
             created_at TEXT NOT NULL
         );
+
+        -- v3: per-job upload and submission checklist. A job can be tracked
+        -- before any documents are generated.
+        CREATE TABLE IF NOT EXISTS application_requirements (
+            job_id TEXT NOT NULL REFERENCES jobspecs(id) ON DELETE CASCADE,
+            item TEXT NOT NULL,
+            required INTEGER NOT NULL DEFAULT 0,
+            done INTEGER NOT NULL DEFAULT 0,
+            detail TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY(job_id, item)
+        );
         """
     )
     cur = conn.execute("SELECT value FROM meta WHERE key='schema_version'")
@@ -107,7 +118,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             (str(SCHEMA_VERSION),),
         )
     elif int(row["value"]) < SCHEMA_VERSION:
-        # v1 -> v2 adds only the events table (created above); bump the marker.
+        # Additive tables are created above; bump the marker without losing data.
         conn.execute("UPDATE meta SET value=? WHERE key='schema_version'", (str(SCHEMA_VERSION),))
     conn.commit()
 
@@ -132,4 +143,5 @@ def migrate(conn: sqlite3.Connection) -> None:
     """Bring an older database up to the current schema. Safe to re-run."""
     _ensure_column(conn, "jobspecs", "closes_at", "TEXT")
     _ensure_column(conn, "pipeline", "started_on_portal", "TEXT")
+    _ensure_column(conn, "pipeline", "interested", "INTEGER NOT NULL DEFAULT 0")
     conn.commit()

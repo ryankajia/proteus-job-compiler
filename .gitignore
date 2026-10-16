@@ -31,6 +31,9 @@ proteus/data/calibration_levels.json
 
 # Working rules that describe one real job hunt.
 CLAUDE.md
+AGENTS.md
+.env
+.env.*
 
 # Local machine config — contains the local username in absolute paths.
 .claude/settings.local.json

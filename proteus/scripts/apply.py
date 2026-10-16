@@ -48,7 +48,10 @@ def checklist_md(spec: dict, scored: dict, target: str, findings: list, pkg: Pat
     lines.append(doc("resume.md", "Résumé", "export to PDF"))
     lines.append(doc("cover_letter.md", "Cover letter", "personalise the opening"))
     if "selection criteria" in raw:
-        lines.append(doc("selection_criteria.md", "**Statement addressing the selection criteria** (required)",
+        # Named in the PD's own terms: a two-page pitch and a criterion-by-
+        # criterion statement are different documents.
+        lines.append(doc("selection_criteria.md",
+                         f"**{selection.document_name(raw)}** (required)",
                          "check against the official PD"))
     if "refere" in raw:
         lines.append("- [ ] Referees — skip if already recorded in this "

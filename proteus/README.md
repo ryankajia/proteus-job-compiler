@@ -22,9 +22,11 @@
 | Orchestrator (T10) | `scripts/apply.py` | ✅ one command → full application package per job |
 | Learning loop (T11, lite) | `scripts/outcome.py` + `events` table | ✅ record outcomes, response-rate report |
 | Claude API | `proteus/llm.py` | ✅ optional (claude-fable-5 + opus-4-8 fallback) |
+| MiniMax API | `proteus/minimax_ai.py` | ✅ optional: live web search leads and selection criteria AI draft |
 
-Deliberately *not* built: job-board crawling, link discovery, scheduled re-fetch,
-auto-submit (charter: human-in-the-loop, compliance tiers). `joburl.py` reads
+Deliberately *not* built: job-board crawling, scheduled re-fetch,
+auto-submit (charter: human-in-the-loop, compliance tiers). Optional MiniMax
+web search produces leads for review. `joburl.py` reads
 **one** URL, **when you click**, and hands the text back to you for review — it is
 assisted paste, not a crawler.
 
@@ -68,6 +70,25 @@ Three equivalent ways, all human-initiated:
 - **By hand** — drop a `.txt` into `data/real_jobs/` and run `scripts/apply.py`.
 
 Nothing is auto-submitted, ever.
+
+## MiniMax and the plain-language dashboard
+
+Start the local board with `MINIMAX_API_KEY` set in the terminal environment;
+do not paste the key into the dashboard or commit it to a file. The default
+writing model is `MiniMax-M2.7` (override with `MINIMAX_MODEL`). The search
+uses MiniMax-M3 and its server-side `web_search` tool. Both API operations can
+consume your MiniMax allowance. Without the key, all existing local tracking
+and document compilation still work.
+
+The top of the board now shows jobs added today, open roles above the initial
+fit threshold, starred roles, recorded submissions, rejections, and the time
+between recorded submission and rejection events. Search leads are displayed
+separately under **AI 找岗位**. Add a promising vacancy to the board only after
+checking the employer's current page, job ID, closing date and eligibility.
+Search does not scrape or import jobs automatically. Search results are saved
+only under the ignored `out/` directory. An AI selection draft is written as
+`selection_criteria_AI_DRAFT.md` inside the existing ignored application
+package and never overwrites a final file.
 
 ## Discretion
 

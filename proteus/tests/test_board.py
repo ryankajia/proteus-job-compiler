@@ -105,12 +105,11 @@ def _render(rows, monkeypatch):
 
 
 def test_a_job_is_rendered_only_once(monkeypatch):
-    """The whole point of the merge."""
+    """The detail board has one row per job; the summary may link to it too."""
     rows = [_row("alpha_officer", has_package=True),
             _row("beta_fellow", status="applied")]
     html_out = _render(rows, monkeypatch)
-    for r in rows:
-        assert html_out.count(f'>{r["title"]}<') == 1, f'{r["slug"]} rendered twice'
+    assert html_out.count('<p class="title"><a href=') == len(rows)
 
 
 def test_slug_is_a_subtitle_not_the_heading(monkeypatch):
@@ -173,7 +172,7 @@ def test_stage_is_a_menu_not_an_inline_select(monkeypatch):
 
 
 def test_empty_board_says_so(monkeypatch):
-    assert "Nothing here yet" in _render([], monkeypatch)
+    assert "还没有岗位" in _render([], monkeypatch)
 
 
 def test_criteria_progress_renders_as_a_fraction(monkeypatch):

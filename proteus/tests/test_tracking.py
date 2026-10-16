@@ -1,0 +1,53 @@
+"""Checklist tests use an invented applicant and employer only."""
+from proteus import db, jobspec, tracking, webapp
+
+
+def _job(conn):
+    job_id = jobspec.save(conn, {
+        "title": "Example Services Assistant",
+        "org": "Example Civic Office",
+        "source": "synthetic_services_assistant",
+        "raw_text": "Example Services Assistant at Example Civic Office. https://example.com/job",
+        "deadline": "31 December 2099",
+        "closes_at": "2099-12-31",
+    })
+    conn.execute("INSERT INTO pipeline(job_id,status,updated_at) VALUES(?,?,?)",
+                 (job_id, "sensed", "2099-01-01T00:00:00"))
+    conn.commit()
+    return job_id
+
+
+def test_checklist_tracks_uploads_before_submission(tmp_path):
+    conn = db.connect(tmp_path / "tracker.db")
+    job_id = _job(conn)
+    values = {key: {"required": key in ("cv", "statement"),
+                    "done": key == "cv", "detail": ""} for key in tracking.ITEM_KEYS}
+    values["cv"]["detail"] = "resume.docx"
+    tracking.save(conn, job_id, values)
+
+    items = tracking.get(conn, job_id)
+    assert items["cv"]["done"] == 1
+    assert items["cv"]["detail"] == "resume.docx"
+    assert items["statement"]["required"] == 1
+    assert tracking.progress(conn, job_id) == (1, 4)
+    assert conn.execute("SELECT status FROM pipeline WHERE job_id=?", (job_id,)).fetchone()[0] == "sensed"
+
+
+def test_confirmation_records_application_once(tmp_path):
+    conn = db.connect(tmp_path / "tracker.db")
+    job_id = _job(conn)
+    values = {key: {"required": key == "cv", "done": key in ("portal_submitted", "confirmation_received"),
+                    "detail": ""} for key in tracking.ITEM_KEYS}
+    tracking.save(conn, job_id, values)
+    tracking.save(conn, job_id, values)
+    assert conn.execute("SELECT status FROM pipeline WHERE job_id=?", (job_id,)).fetchone()[0] == "applied"
+    assert conn.execute("SELECT count(*) FROM events WHERE job_id=? AND event='applied'", (job_id,)).fetchone()[0] == 1
+
+
+def test_track_page_shows_separate_submit_and_confirmation(tmp_path):
+    conn = db.connect(tmp_path / "tracker.db")
+    job_id = _job(conn)
+    page = webapp.render_track(conn, job_id).decode()
+    assert "Pressed Submit on employer site" in page
+    assert "Application confirmation received" in page
+    assert "Selection statement / pitch" in page
