@@ -97,11 +97,62 @@
     'Submitted, awaiting': '已投递，等待回复', 'Still open': '仍在招聘',
     'Date unknown': '截止日期未知', 'Strong': '匹配较高',
     'Possible': '可以考虑', 'Stretch': '有一定差距',
-    'Not scored': '未评分', 'Visa-restricted': '签证限制'
+    'Not scored': '未评分', 'Visa-restricted': '签证限制',
+    'Add a new entry': '准备申请材料', '← Back to the board': '← 返回看板',
+    '← Board': '← 返回看板', 'Track a job': '记录岗位',
+    'Save a vacancy now. You can prepare the documents later.': '先记录岗位，申请材料可以稍后准备。',
+    'Job title': '岗位名称', 'Employer': '雇主', 'Official job link': '官方岗位链接',
+    'Closing date': '截止日期', 'Position / vacancy number': '岗位编号',
+    'Required documents (change these later on the checklist):': '要求提交的材料（稍后可在清单修改）：',
+    'Cover letter': '求职信', 'Selection statement / pitch': '甄选标准陈述 / 求职陈述',
+    'Referees': '推荐人', 'Other requirements or notes': '其他要求或备注',
+    'Save to board': '保存到看板', 'Application checklist': '申请清单',
+    'Official job page ↗': '官方招聘页 ↗', 'Prepared documents': '已准备的材料',
+    'Always required': '必须确认', 'Required': '需要', 'Done': '已完成',
+    'Item': '项目', 'Needed?': '需要吗？', 'Complete?': '完成了吗？',
+    'Details / file used': '详情 / 上传的文件', 'Save checklist': '保存清单',
+    'File used, requirement, or confirmation reference': '文件名、要求或确认邮件编号',
+    'Documents (in reading order)': '申请材料（按阅读顺序）',
+    'Go to the employer’s page ↑': '打开雇主招聘页 ↑',
+    'Activity log': '投递活动记录', '🗓 Activity log': '🗓 投递活动记录',
+    'Generated résumé': '生成的简历', 'Gap report': '差距提示',
+    'Original job description': '原始招聘信息', 'Status:': '状态：',
+    'Could not read this entry': '无法读取招聘信息', '← Try again': '← 重试',
+    'Could not add it': '添加失败', 'Build incomplete': '材料生成未完成',
+    'Entry saved, but the package did not finish building': '岗位已保存，但申请材料生成未完成',
+    '① Paste a link': '① 粘贴链接', 'Job URL': '岗位链接',
+    '🔗 Fetch the page': '🔗 读取网页', '② Paste text': '② 粘贴招聘文字',
+    '③ Upload a document': '③ 上传招聘文件', 'Drag files onto this box': '把文件拖到这里',
+    'Name (optional — used as the title and folder name)': '名称（可选，用作标题和文件夹名）',
+    'Closing date (optional)': '截止日期（可选）',
+    'Analyse and build the full package': '分析并生成完整申请材料',
+    'Three ways in. Use whichever suits, or': '可用链接、文字或文件录入，也可以组合使用。',
+    'mix them': '组合使用',
+    'No evidence at all for these — check before the interview:': '这些要求缺少证据，面试前核对：',
+    'Biggest gaps — the cram list:': '主要差距：',
+    'No obvious gaps: every requirement has evidence behind it.': '未发现明显证据缺口。'
   };
+  var longPairs = [
+    ['Check “Required” for what this vacancy asks for. Check “Done” only after completing that step.\nFor documents, “Done” means uploaded on the employer\'s site. The final two rows record pressing\nSubmit and receiving the confirmation separately.',
+      '岗位要求的项目勾选“需要”；完成后才勾选“已完成”。文件的“已完成”表示已上传到雇主网站。最后两行分别记录点击 Submit 和收到确认邮件。'],
+    ['Check the position number on the official page before uploading. Answer personal declarations in the employer\'s form yourself.',
+      '上传前核对官方页面的岗位编号。身份、签证、健康等个人声明请你亲自回答。'],
+    ['Check the text is right, then press the build button. The system never submits for you.',
+      '核对招聘文字后再生成材料。系统不会替你投递。'],
+    ['After you submit this, the résumé, cover letter, pre-submission check and gap report are built — a few seconds.',
+      '点击后会生成简历、求职信、投递前检查和差距提示，通常只需几秒。']
+  ];
+  longPairs.forEach(function (pair) { enToZh[pair[0]] = pair[1]; });
   var zhToEn = {};
   pairs.forEach(function (pair) { zhToEn[pair[0]] = pair[1]; });
   Object.keys(enToZh).forEach(function (key) { zhToEn[enToZh[key]] = key; });
+  var placeholders = {
+    'Paste the whole ad here — keep the title, employer and requirements; no need to tidy it up.': '在这里粘贴完整招聘信息，保留岗位名称、雇主和要求。',
+    'File used, requirement, or confirmation reference': '填写文件名、要求或确认邮件编号',
+    'Research Officer — School of Psychology': '例如：研究助理'
+  };
+  var placeholderBack = {};
+  Object.keys(placeholders).forEach(function (key) { placeholderBack[placeholders[key]] = key; });
   var english = localStorage.getItem('proteus-language') === 'en';
   function translate() {
     document.documentElement.lang = english ? 'en' : 'zh-CN';
@@ -115,8 +166,24 @@
       var value = raw.trim();
       if (!value) continue;
       var replacement = english ? zhToEn[value] : enToZh[value];
+      if (!replacement && !english) {
+        var match = value.match(/^(\d+) days left$/);
+        if (match) replacement = match[1] + ' 天后截止';
+        if (value === '1 day left') replacement = '明天截止';
+        if (value === 'today') replacement = '今天截止';
+      } else if (!replacement && english) {
+        var back = value.match(/^(\d+) 天后截止$/);
+        if (back) replacement = back[1] + ' days left';
+        if (value === '明天截止') replacement = '1 day left';
+        if (value === '今天截止') replacement = 'today';
+      }
       if (replacement) node.nodeValue = raw.replace(value, replacement);
     }
+    document.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(function (field) {
+      var current = field.getAttribute('placeholder');
+      var translated = english ? placeholderBack[current] : placeholders[current];
+      if (translated) field.setAttribute('placeholder', translated);
+    });
   }
   button.addEventListener('click', function () {
     english = !english;
