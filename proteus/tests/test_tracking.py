@@ -75,3 +75,28 @@ def test_applied_category_counts_use_manual_choice(tmp_path):
     assert '<th scope="row">临床</th><td>1</td><td>1</td>' in overview
     assert 'name="role_category"' in webapp.render_track(conn, job_id).decode()
     assert webapp._role_category({"title": "Clinical Assistant", "role_category": "研究"}) == "研究"
+
+
+def test_application_timeline_groups_unique_jobs_by_week_and_day(tmp_path):
+    conn = db.connect(tmp_path / "tracker.db")
+    first = _job(conn)
+    second = jobspec.save(conn, {
+        "title": "Example Orchard Clerk", "org": "Example Orchard",
+        "source": "synthetic_orchard_clerk", "raw_text": "Example work at example.com",
+    })
+    conn.execute("INSERT INTO pipeline(job_id,status,submitted_at,updated_at) VALUES(?,?,?,?)",
+                 (second, "rejected", "2026-10-06", "2026-10-09T10:00:00"))
+    conn.execute("UPDATE pipeline SET status='applied',submitted_at=? WHERE job_id=?",
+                 ("2026-10-13", first))
+    conn.executemany("INSERT INTO events(job_id,event,created_at) VALUES(?,?,?)", [
+        (first, "applied", "2026-10-13T09:00:00"),
+        (first, "applied", "2026-10-13T10:00:00"),
+    ])
+    conn.commit()
+    page = webapp.render_log(conn).decode()
+    assert "2026-10-12 — 2026-10-18" in page
+    assert "2026-10-05 — 2026-10-11" in page
+    assert "周二 2026-10-13" in page
+    assert "周二 2026-10-06" in page
+    assert page.count("Example Services Assistant</a>") == 1
+    assert page.count("Example Orchard Clerk</a>") == 1

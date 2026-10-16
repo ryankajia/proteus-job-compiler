@@ -217,6 +217,17 @@ details.deadline>summary::after{content:""}
 .overview-list li:first-child{border-top:0}
 .overview-list span{display:block;color:var(--b-ink-2);font-size:12px;margin-top:3px}
 .overview-empty{color:var(--b-ink-3);font-size:13px}
+.log-week{background:#fff;border:1px solid var(--b-line);border-radius:10px;margin:12px 0;overflow:hidden}
+.log-week>summary,.log-day>summary{cursor:pointer;display:flex;justify-content:space-between;gap:12px;align-items:center;list-style:none}
+.log-week>summary::-webkit-details-marker,.log-day>summary::-webkit-details-marker{display:none}
+.log-week>summary{padding:14px 16px;font-weight:650;background:#f5f8fb}
+.log-week>summary::before,.log-day>summary::before{content:"▸";color:var(--b-ink-3)}
+.log-week[open]>summary::before,.log-day[open]>summary::before{content:"▾"}
+.log-week summary b,.log-day summary b{margin-left:auto;font-size:13px;color:var(--b-accent);white-space:nowrap}
+.log-day{border-top:1px solid var(--b-line-soft)}
+.log-day>summary{padding:11px 18px;font-size:14px}
+.log-day .overview-list,.log-week>.overview-list{padding:0 18px 12px 38px}
+.log-week>.overview-caveat{padding:0 18px}
 .interest-form{margin-top:5px}
 .interest-form button{border:0;background:transparent;color:#9a6500;cursor:pointer;padding:0;font-size:12px}
 @media(max-width:650px){.overview{padding:15px}.overview-numbers{grid-template-columns:repeat(3,1fr)}

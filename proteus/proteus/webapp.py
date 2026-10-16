@@ -27,7 +27,7 @@ from email.policy import default as _email_policy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (applog, calibration, compiler, db, fit, gate, identity,
+from . import (calibration, compiler, db, fit, gate, identity,
                jobdoc, joburl, jobspec, materials, minimax_ai, reuse, revisions, tracking)
 
 PORT = 8765
@@ -1028,7 +1028,7 @@ def render_board(conn: sqlite3.Connection) -> bytes:
     sync_title = (f"Reads {master.name} and rebuilds auto drafts" if master else
                   "No master CV found in my-materials/cv")
     body = [f'<div class="topbar"><h1>我的求职看板</h1>'
-            '<span><a class="btn secondary" href="/log">详细记录</a> '
+            '<span><a class="btn secondary" href="/log">投递活动记录</a> '
             '<form class="inline" method="post" action="/sync">'
             f'<button class="btn secondary" type="submit" title="{html.escape(sync_title, quote=True)}">Sync master CV</button></form> '
             '<a class="btn secondary" href="/help" title="使用说明">使用说明</a> '
@@ -1072,11 +1072,65 @@ def render_board(conn: sqlite3.Connection) -> bytes:
 
 
 def render_log(conn: sqlite3.Connection) -> bytes:
-    """Activity log — rebuilt from the events table on every view, so it is never stale."""
-    applog.write(conn)
-    return _page("Activity log", '<div class="topbar"><h1>🗓 Activity log</h1>'
-                 '<a class="btn secondary" href="/">← Back to the board</a></div>'
-                 '<div class="card">' + _md_to_html(applog.build(conn)) + '</div>')
+    """Applications grouped Monday–Sunday, then by date; one job per submission."""
+    submitted_statuses = {"applied", "interviewing", "offer", "rejected"}
+    hidden = jobspec.hidden_sources()
+    first_applied = {}
+    for event in conn.execute("SELECT job_id,created_at FROM events WHERE event='applied' ORDER BY created_at"):
+        first_applied.setdefault(event["job_id"], (event["created_at"] or "")[:10])
+    grouped: dict[_dt.date, dict[_dt.date, list[dict]]] = {}
+    undated = []
+    for row in conn.execute("SELECT j.id,j.title,j.org,j.source,p.status,p.submitted_at,p.rejected_at "
+                            "FROM jobspecs j JOIN pipeline p ON p.job_id=j.id"):
+        if row["source"] in hidden or row["status"] not in submitted_statuses:
+            continue
+        item = dict(row)
+        raw_date = (item["submitted_at"] or first_applied.get(item["id"], ""))[:10]
+        try:
+            day = _dt.date.fromisoformat(raw_date)
+        except ValueError:
+            undated.append(item)
+            continue
+        week_start = day - _dt.timedelta(days=day.weekday())
+        grouped.setdefault(week_start, {}).setdefault(day, []).append(item)
+
+    status_names = {"applied": "已投递", "interviewing": "面试中", "offer": "已录用", "rejected": "已拒绝"}
+    weekday = "一二三四五六日"
+
+    def job_html(item: dict) -> str:
+        href = "/track/" + urllib.parse.quote(item["id"], safe="")
+        note = "确认日期" if item["submitted_at"] else "状态记录日期·待核对邮件"
+        result = status_names.get(item["status"], item["status"])
+        if item["status"] == "rejected" and item["rejected_at"]:
+            result += " · 拒信 " + html.escape(item["rejected_at"][:10])
+        return (f'<li><a href="{href}">{html.escape(item["title"] or "未命名岗位")}</a>'
+                f'<span>{html.escape(item["org"] or "机构待核对")} · {result} · {note}</span></li>')
+
+    weeks = []
+    for index, start in enumerate(sorted(grouped, reverse=True)):
+        days = grouped[start]
+        count = sum(len(items) for items in days.values())
+        end = start + _dt.timedelta(days=6)
+        daily = []
+        for day in sorted(days, reverse=True):
+            items = sorted(days[day], key=lambda x: (x["title"] or "", x["org"] or ""))
+            daily.append(f'<details class="log-day"><summary>周{weekday[day.weekday()]} {day.isoformat()}'
+                         f'<b>{len(items)} 个岗位</b></summary><ul class="overview-list">'
+                         + "".join(job_html(item) for item in items) + "</ul></details>")
+        weeks.append(f'<details class="log-week"{" open" if index == 0 else ""}>'
+                     f'<summary>{start.isoformat()} — {end.isoformat()}<b>{count} 个岗位</b></summary>'
+                     + "".join(daily) + "</details>")
+    total = sum(len(items) for days in grouped.values() for items in days.values()) + len(undated)
+    unknown = ('<details class="log-week"><summary>日期待补<b>' + str(len(undated)) +
+               ' 个岗位</b></summary><p class="overview-caveat">到岗位跟踪页填写确认投递日期后，这些岗位会进入对应的一周。</p>'
+               '<ul class="overview-list">' + "".join(job_html(item) for item in undated) +
+               '</ul></details>') if undated else ""
+    body = ('<div class="topbar"><h1>按周查看投递记录</h1>'
+            '<a class="btn secondary" href="/">← 返回看板</a></div>'
+            f'<p class="sub">系统记录为已投递：{total} 个岗位。点开一周，再点开某一天查看岗位。</p>'
+            '<p class="overview-caveat">一周按周一至周日计算。未填写确认投递日期的旧记录，暂用首次“已投递”状态的日期归档；请以确认邮件核对。</p>'
+            + ("".join(weeks) if weeks else '<div class="card">还没有带日期的投递记录。</div>') + unknown)
+    return _page("按周查看投递记录", body)
 
 
 def render_discover(message: str = "") -> bytes:

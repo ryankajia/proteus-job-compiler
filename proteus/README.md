@@ -100,6 +100,9 @@ submissions and rejections by role type; title-based types are provisional until
 you select a type on the job tracking page. Search leads are displayed
 separately under **AI 找岗位**. Add a promising vacancy to the board only after
 checking the employer's current page, job ID, closing date and eligibility.
+The application timeline groups submitted roles into Monday–Sunday weeks, then
+expandable dates. Entries without a known submission date stay in a separate
+"date needed" group until the confirmation date is recorded.
 Search does not scrape or import jobs automatically. Search results are saved
 only under the ignored `out/` directory. An AI selection draft is written as
 `selection_criteria_AI_DRAFT.md` inside the existing ignored application
